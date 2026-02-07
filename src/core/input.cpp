@@ -92,7 +92,7 @@ bool textInput(const char* title, String &out, int maxLen, bool mask){
     }
 
     // rows
-    const char* r1 = symbol ? row1s : (caps ? row1s : row1);
+    const char* r1 = symbol ? row1s : row1;
     const char* r2 = symbol ? row2s : (caps ? row2s : row2);
     const char* r3 = symbol ? row3s : (caps ? row3s : row3);
     const char* r4 = symbol ? row4s : (caps ? row4s : row4);
@@ -116,20 +116,53 @@ bool textInput(const char* title, String &out, int maxLen, bool mask){
 
     M5.Display.setTextColor(COLOR_DIM);
     M5.Display.setCursor(6, SCREEN_H-10);
-    M5.Display.print("Prev/Next move  M5 select");
+    M5.Display.print("Prev:Down Hold:Up  Next:Right Hold:Left");
   };
 
   int total = keyCount();
   draw();
+  bool pwrDown = false;
+  bool pwrLong = false;
+  uint32_t pwrStart = 0;
+  bool bDown = false;
+  bool bLong = false;
+  uint32_t bStart = 0;
   while (true){
     M5.update();
-    if (M5.BtnB.wasPressed()){
-      cursor = (cursor + 1) % total;
+    if (M5.BtnPWR.wasPressed()){
+      pwrDown = true;
+      pwrLong = false;
+      pwrStart = millis();
+    }
+    if (pwrDown && !pwrLong && (millis() - pwrStart > 500)){
+      cursor = (cursor - 1 + total) % total;
+      pwrLong = true;
       draw();
     }
-    if (M5.BtnPWR.wasPressed()){
+    if (M5.BtnPWR.wasReleased()){
+      if (!pwrLong){
+        cursor = (cursor + 1) % total;
+        draw();
+      }
+      pwrDown = false;
+    }
+
+    if (M5.BtnB.wasPressed()){
+      bDown = true;
+      bLong = false;
+      bStart = millis();
+    }
+    if (bDown && !bLong && (millis() - bStart > 500)){
       cursor = (cursor - 1 + total) % total;
+      bLong = true;
       draw();
+    }
+    if (M5.BtnB.wasReleased()){
+      if (!bLong){
+        cursor = (cursor + 1) % total;
+        draw();
+      }
+      bDown = false;
     }
     if (M5.BtnA.wasPressed()){
       if (cursor < topCount){

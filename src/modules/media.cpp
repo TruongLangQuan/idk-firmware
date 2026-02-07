@@ -2,16 +2,31 @@
 #include "core/ui.h"
 
 // --- SPIFFS scanning ---
+static void addUnique(String *arr, int &count, const String &name){
+  for (int i=0;i<count;i++){
+    if (arr[i] == name) return;
+  }
+  if (count < MAX_FILES) arr[count++] = name;
+}
+
+static String normPath(const String &in){
+  String s = in;
+  if (!s.startsWith("/")) s = "/" + s;
+  while (s.indexOf("//") >= 0) s.replace("//", "/");
+  return s;
+}
+
 static void scanDir(fs::FS &fs, const char* path){
   File dir = fs.open(path);
   if (!dir || !dir.isDirectory()) return;
   File f = dir.openNextFile();
   while (f) {
     String name = String(path) + "/" + String(f.name());
-    if (name.endsWith(".png") && imgCount < MAX_FILES) imgFiles[imgCount++] = name;
-    else if (name.endsWith(".gif") && gifCount < MAX_FILES) gifFiles[gifCount++] = name;
-    else if (name.endsWith(".ir")  && irCount  < MAX_FILES) irFiles[irCount++] = name;
-    else if (name.endsWith(".txt") && txtCount < MAX_FILES) txtFiles[txtCount++] = name;
+    name = normPath(name);
+    if (name.endsWith(".png")) addUnique(imgFiles, imgCount, name);
+    else if (name.endsWith(".gif")) addUnique(gifFiles, gifCount, name);
+    else if (name.endsWith(".ir"))  addUnique(irFiles, irCount, name);
+    else if (name.endsWith(".txt")) addUnique(txtFiles, txtCount, name);
     f = dir.openNextFile();
   }
 }
@@ -26,11 +41,11 @@ void scanSPIFFS(){
   if (root) {
     File f = root.openNextFile();
     while (f) {
-      String n = String(f.name());
-      if (n.endsWith(".png") && imgCount < MAX_FILES) imgFiles[imgCount++] = n;
-      else if (n.endsWith(".gif") && gifCount < MAX_FILES) gifFiles[gifCount++] = n;
-      else if (n.endsWith(".ir") && irCount < MAX_FILES) irFiles[irCount++] = n;
-      else if (n.endsWith(".txt") && txtCount < MAX_FILES) txtFiles[txtCount++] = n;
+      String n = normPath(String(f.name()));
+      if (n.endsWith(".png")) addUnique(imgFiles, imgCount, n);
+      else if (n.endsWith(".gif")) addUnique(gifFiles, gifCount, n);
+      else if (n.endsWith(".ir")) addUnique(irFiles, irCount, n);
+      else if (n.endsWith(".txt")) addUnique(txtFiles, txtCount, n);
       f = root.openNextFile();
     }
   }
@@ -98,23 +113,51 @@ static int32_t GifSeekFile(GIFFILE *pFile, int32_t iPosition){
   return iPosition;
 }
 static void GifDraw(GIFDRAW *pDraw){
-  int16_t x = pDraw->iX;
-  int16_t y = pDraw->iY;
-  int16_t w = pDraw->iWidth;
-  int16_t h = pDraw->iHeight;
-  int16_t maxW = M5.Display.width();
-  int16_t maxH = M5.Display.height();
-  if (x < 0 || y < 0) return;
-  if (x + w > maxW) w = maxW - x;
-  if (y + h > maxH) h = maxH - y;
-  if (w <= 0 || h <= 0) return;
-  uint16_t *pixels = (uint16_t*)pDraw->pPixels;
-  M5.Display.pushImage(x, y, w, h, pixels);
+  static uint16_t *lineBuf = nullptr;
+  if (!lineBuf){
+    lineBuf = (uint16_t*)malloc(SCREEN_W * sizeof(uint16_t));
+    if (!lineBuf) return;
+  }
+  int x = pDraw->iX;
+  int y = pDraw->iY + pDraw->y;
+  int w = pDraw->iWidth;
+  if (x < 0 || y < 0 || x >= SCREEN_W || y >= SCREEN_H) return;
+  if (x + w > SCREEN_W) w = SCREEN_W - x;
+  if (w <= 0) return;
+
+  uint8_t *s = pDraw->pPixels;
+  uint16_t *palette = pDraw->pPalette;
+
+  if (pDraw->ucDisposalMethod == 2){
+    for (int i=0;i<w;i++){
+      if (s[i] == pDraw->ucTransparent) s[i] = pDraw->ucBackground;
+    }
+    pDraw->ucHasTransparency = 0;
+  }
+
+  if (pDraw->ucHasTransparency){
+    int xPos = 0;
+    while (xPos < w){
+      while (xPos < w && s[xPos] == pDraw->ucTransparent) xPos++;
+      int runStart = xPos;
+      while (xPos < w && s[xPos] != pDraw->ucTransparent){
+        lineBuf[xPos] = palette[s[xPos]];
+        xPos++;
+      }
+      int runLen = xPos - runStart;
+      if (runLen > 0){
+        M5.Display.pushImage(x + runStart, y, runLen, 1, &lineBuf[runStart]);
+      }
+    }
+  } else {
+    for (int i=0;i<w;i++) lineBuf[i] = palette[s[i]];
+    M5.Display.pushImage(x, y, w, 1, lineBuf);
+  }
 }
 
 void playGIFLoop(const char* path){
+  gif.begin(GIF_PALETTE_RGB565_LE);
   while(true){
-    gif.begin(LITTLE_ENDIAN_PIXELS);
     int r = gif.open(path, GifOpenFile, GifCloseFile, GifReadFile, GifSeekFile, GifDraw);
     if(!r){
       M5.Display.fillScreen(BLACK);
@@ -124,16 +167,13 @@ void playGIFLoop(const char* path){
       delay(800);
       return;
     }
-    M5.Display.startWrite();
     while (gif.playFrame(true, NULL) > 0) {
       M5.update();
       if (M5.BtnPWR.wasPressed()) {
         gif.close();
-        M5.Display.endWrite();
         return;
       }
     }
     gif.close();
-    M5.Display.endWrite();
   }
 }

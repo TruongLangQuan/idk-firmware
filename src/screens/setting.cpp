@@ -1,6 +1,7 @@
 #include "screens/setting.h"
 #include "core/ui.h"
 #include "system/power.h"
+#include "modules/webui.h"
 
 void screenSettingUpdate(){
   if (M5.BtnB.wasPressed()) { setIndex = (setIndex + 1) % SET_COUNT; drawSetting(); }
@@ -13,12 +14,29 @@ void screenSettingUpdate(){
       setBacklight(BRIGHT_NORMAL);
       drawSetting();
     } else if (setIndex == 1){
+      if (!webuiEnabled){
+        webuiShowInfo("WebUI Disabled");
+        while (true){ M5.update(); if (M5.BtnPWR.wasPressed()) break; delay(10); }
+        drawSetting();
+        return;
+      }
+      if (WiFi.status() == WL_CONNECTED) webuiStartSTA();
+      else webuiStartAP();
+      webuiShowInfo("WebUI Started");
+      while (true){ M5.update(); if (M5.BtnPWR.wasPressed()) break; delay(10); }
+      drawSetting();
+    } else if (setIndex == 2){
+      webuiEnabled = !webuiEnabled;
+      webuiPersistEnabled(webuiEnabled);
+      if (!webuiEnabled) webuiStop();
+      drawSetting();
+    } else if (setIndex == 3){
       M5.Display.fillScreen(BLACK); drawStatus(); M5.Display.setCursor(6,50); M5.Display.print("Restarting...");
       delay(300); ESP.restart();
-    } else if (setIndex == 2){
+    } else if (setIndex == 4){
       M5.Display.fillScreen(BLACK); drawStatus(); M5.Display.setCursor(6,50); M5.Display.print("Powering off...");
       delay(200); M5.Power.powerOff();
-    } else if (setIndex == 3){
+    } else if (setIndex == 5){
       M5.Display.fillScreen(BLACK);
       drawStatus();
       M5.Display.setCursor(6, STATUS_H + 12);

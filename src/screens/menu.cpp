@@ -12,10 +12,11 @@ void screenMenuUpdate(){
     else if (menuIndex == 1){ screen = SCR_CLOCK; drawClock(); }
     else if (menuIndex == 2){ imgIndex = 0; screen = SCR_IMG_LIST; drawList("Images", imgFiles, imgCount, imgIndex); }
     else if (menuIndex == 3){ gifIndex = 0; screen = SCR_GIF_LIST; drawList("Gifs", gifFiles, gifCount, gifIndex); }
-    else if (menuIndex == 4){ gameIndex = 0; screen = SCR_GAMES_LIST; drawListCstr("Games", GAME_ITEMS, GAME_COUNT, gameIndex); }
-    else if (menuIndex == 5){ testIndex = 0; screen = SCR_TEST_LIST; drawListCstr("Test", TEST_ITEMS, TEST_COUNT, testIndex); }
-    else if (menuIndex == 6){ irIndex = 0; screen = SCR_IR_LIST; drawList("IR", irFiles, irCount, irIndex); }
-    else if (menuIndex == 7){ screen = SCR_FILES_LIST; filesSource = FS_LITTLEFS; drawFilesList(); }
-    else if (menuIndex == 8){ setIndex = 0; screen = SCR_SETTING; drawSetting(); }
+    else if (menuIndex == 4){ screen = SCR_TXT_LIST; drawList("Text", txtFiles, txtCount, 0); }
+    else if (menuIndex == 5){ gameIndex = 0; screen = SCR_GAMES_LIST; drawListCstr("Games", GAME_ITEMS, GAME_COUNT, gameIndex); }
+    else if (menuIndex == 6){ testIndex = 0; screen = SCR_TEST_LIST; drawListCstr("Test", TEST_ITEMS, TEST_COUNT, testIndex); }
+    else if (menuIndex == 7){ irIndex = 0; screen = SCR_IR_LIST; drawList("IR", irFiles, irCount, irIndex); }
+    else if (menuIndex == 8){ screen = SCR_FILES_LIST; filesSource = FS_LITTLEFS; drawFilesList(); }
+    else if (menuIndex == 9){ setIndex = 0; screen = SCR_SETTING; drawSetting(); }
   }
 }

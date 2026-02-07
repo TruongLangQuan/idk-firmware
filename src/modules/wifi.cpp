@@ -1,6 +1,14 @@
 #include "modules/wifi.h"
 #include "core/ui.h"
 #include "core/input.h"
+#include "modules/webui.h"
+#include "modules/clock.h"
+#include <Preferences.h>
+
+static Preferences wifiPrefs;
+static const char* WIFI_NS = "wifi";
+static const char* WIFI_KEY_SSID = "ssid";
+static const char* WIFI_KEY_PASS = "pass";
 
 void scanWifi(){
   wifiCount = 0;
@@ -50,6 +58,19 @@ void wifiConnectTo(int idx){
     M5.Display.setCursor(6, STATUS_H + 36);
     M5.Display.setTextColor(WHITE);
     M5.Display.print(WiFi.localIP());
+    wifiPrefs.begin(WIFI_NS, false);
+    wifiPrefs.putString(WIFI_KEY_SSID, ssid);
+    wifiPrefs.putString(WIFI_KEY_PASS, pass);
+    wifiPrefs.end();
+    setupTime();
+    uint32_t t0 = millis();
+    while (!timeValid() && millis() - t0 < 2000){
+      delay(50);
+    }
+    if (webuiPromptOpen()){
+      webuiStartSTA();
+      webuiShowInfo("WebUI Started");
+    }
   } else {
     M5.Display.setTextColor(RED);
     M5.Display.print("Failed");
@@ -62,5 +83,27 @@ void wifiConnectTo(int idx){
     M5.update();
     if (M5.BtnPWR.wasPressed()) break;
     delay(10);
+  }
+}
+
+void wifiAutoConnect(){
+  wifiPrefs.begin(WIFI_NS, true);
+  String ssid = wifiPrefs.getString(WIFI_KEY_SSID, "");
+  String pass = wifiPrefs.getString(WIFI_KEY_PASS, "");
+  wifiPrefs.end();
+  if (ssid.length() == 0) return;
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid.c_str(), pass.c_str());
+  uint32_t start = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 6000){
+    delay(50);
+  }
+  if (WiFi.status() == WL_CONNECTED){
+    setupTime();
+    uint32_t t0 = millis();
+    while (!timeValid() && millis() - t0 < 2000){
+      delay(50);
+    }
   }
 }

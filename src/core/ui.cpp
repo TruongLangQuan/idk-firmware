@@ -11,21 +11,50 @@ void drawStatus(){
   if (bat <= 20) color = RED; else if (bat <= 50) color = YELLOW;
   M5.Display.setTextColor(color);
   M5.Display.printf("%d%%", bat);
+
+  // Storage usage (SPIFFS) next to battery
+  size_t total = SPIFFS.totalBytes();
+  size_t used = SPIFFS.usedBytes();
+  int totalMB = (int)((total + (1024*1024 - 1)) / (1024*1024));
+  int usedMB = (int)((used + (1024*1024 - 1)) / (1024*1024));
+  M5.Display.setTextColor(WHITE);
+  M5.Display.setCursor(80, 2);
+  M5.Display.printf("%dMB/%dMB", usedMB, totalMB);
+
+  // Max flash size
+  int flashMB = (int)(ESP.getFlashChipSize() / (1024 * 1024));
+  M5.Display.setCursor(160, 2);
+  M5.Display.printf("MAX:%dMB", flashMB);
+
+  // WiFi icon on the right when connected
+  if (WiFi.status() == WL_CONNECTED){
+    int x = SCREEN_W - 20;
+    int y = 4;
+    M5.Display.setTextColor(WHITE);
+    M5.Display.fillRect(x + 0, y + 6, 3, 2, WHITE);
+    M5.Display.fillRect(x + 5, y + 4, 3, 4, WHITE);
+    M5.Display.fillRect(x + 10, y + 2, 3, 6, WHITE);
+  }
 }
 
 void drawMenu(){
   M5.Display.fillScreen(COLOR_BG);
   drawStatus();
-  for(int i=0;i<MENU_COUNT;i++){
+  int maxShow = 8;
+  int first = 0;
+  if (menuIndex >= maxShow) first = menuIndex - maxShow + 1;
+  for(int i=0;i<maxShow;i++){
+    int idx = first + i;
+    if (idx >= MENU_COUNT) break;
     int y = STATUS_H + 8 + i*12;
-    if (i == menuIndex){
+    if (idx == menuIndex){
       M5.Display.fillRect(0, y-2, SCREEN_W, 12, COLOR_HI);
       M5.Display.setTextColor(WHITE);
     } else {
       M5.Display.setTextColor(COLOR_DIM);
     }
     M5.Display.setCursor(8,y);
-    M5.Display.print(MENU_ITEMS[i]);
+    M5.Display.print(MENU_ITEMS[idx]);
   }
 }
 
@@ -97,6 +126,10 @@ void drawSetting(){
     if (i == 0){
       M5.Display.setCursor(150,y);
       M5.Display.print(DIM_TEXT[dimIndex]);
+    }
+    if (i == 2){
+      M5.Display.setCursor(150,y);
+      M5.Display.print(webuiEnabled ? "On" : "Off");
     }
   }
 }

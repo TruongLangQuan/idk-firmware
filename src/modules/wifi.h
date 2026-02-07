@@ -3,3 +3,4 @@
 
 void scanWifi();
 void wifiConnectTo(int idx);
+void wifiAutoConnect();

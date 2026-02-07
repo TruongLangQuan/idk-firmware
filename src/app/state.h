@@ -32,6 +32,7 @@ enum Screen {
   SCR_IMG_VIEW,
   SCR_GIF_LIST,
   SCR_GIF_VIEW,
+  SCR_TXT_LIST,
   SCR_GAMES_LIST,
   SCR_TEST_LIST,
   SCR_IR_LIST,
@@ -49,7 +50,7 @@ extern const int MENU_COUNT;
 extern int menuIndex;
 
 // ===== File lists =====
-#define MAX_FILES 36
+#define MAX_FILES 24
 extern String imgFiles[MAX_FILES]; extern int imgCount; extern int imgIndex;
 extern String gifFiles[MAX_FILES]; extern int gifCount; extern int gifIndex;
 extern String irFiles[MAX_FILES];  extern int irCount;  extern int irIndex;
@@ -108,3 +109,4 @@ extern uint8_t BRIGHT_DIM;
 extern int setIndex;
 extern const char* SET_ITEMS[];
 extern const int SET_COUNT;
+extern bool webuiEnabled;

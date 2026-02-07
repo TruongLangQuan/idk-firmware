@@ -12,12 +12,15 @@
 #include "modules/files.h"
 #include "modules/games.h"
 #include "modules/test.h"
+#include "modules/webui.h"
+#include "modules/wifi.h"
 
 #include "screens/menu.h"
 #include "screens/wifi.h"
 #include "screens/clock.h"
 #include "screens/img.h"
 #include "screens/gif.h"
+#include "screens/txt.h"
 #include "screens/games.h"
 #include "screens/test.h"
 #include "screens/ir.h"
@@ -45,6 +48,8 @@ void setup(){
   sdReady = false;
   scanSPIFFS();
   setupTime();
+  webuiInit();
+  wifiAutoConnect();
   randomSeed(millis());
 
   drawMenu();
@@ -83,6 +88,9 @@ void loop(){
     case SCR_GIF_LIST:
       screenGifListUpdate();
       break;
+    case SCR_TXT_LIST:
+      screenTxtListUpdate();
+      break;
     case SCR_GAMES_LIST:
       screenGamesUpdate();
       break;
@@ -108,5 +116,6 @@ void loop(){
       break;
   }
 
+  webuiLoop();
   delay(1);
 }

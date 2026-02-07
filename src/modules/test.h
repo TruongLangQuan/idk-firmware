@@ -3,3 +3,5 @@
 
 void drawPlot(const String &expr);
 void runCube();
+void runUniverse();
+void runIllusion();

@@ -3,8 +3,8 @@
 // ===== Globals =====
 Screen screen = SCR_MENU;
 
-const char* MENU_ITEMS[] = {"Wifi","Clock","Img","Gif","Games","Test","IR","Files","Setting"};
-const int MENU_COUNT = 9;
+const char* MENU_ITEMS[] = {"Wifi","Clock","Img","Gif","Txt","Games","Test","IR","Files","Setting"};
+const int MENU_COUNT = 10;
 int menuIndex = 0;
 
 String imgFiles[MAX_FILES]; int imgCount = 0; int imgIndex = 0;
@@ -36,8 +36,8 @@ String browserFiles[MAX_FILES];
 int browserCount = 0;
 int browserIndex = 0;
 
-const char* TEST_ITEMS[] = {"Text Display","Function Plot","3D Cube"};
-const int TEST_COUNT = 3;
+const char* TEST_ITEMS[] = {"Text Display","Function Plot","3D Cube","3D Universe","Illusion"};
+const int TEST_COUNT = 5;
 int testIndex = 0;
 
 const char* GAME_ITEMS[] = {"Tetris","Flappy Bird","Slot Machine","Dino"};
@@ -53,6 +53,6 @@ uint8_t BRIGHT_NORMAL = 255;
 uint8_t BRIGHT_DIM = 40;
 
 int setIndex = 0;
-const char* SET_ITEMS[] = {"Dim Time","Restart","Power Off","Device Info"};
-const int SET_COUNT = 4;
-
+const char* SET_ITEMS[] = {"Dim Time","WebUI","WebUI Enable","Restart","Power Off","Device Info"};
+const int SET_COUNT = 6;
+bool webuiEnabled = true;

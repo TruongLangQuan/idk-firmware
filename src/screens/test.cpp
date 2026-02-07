@@ -26,6 +26,10 @@ void screenTestUpdate(){
       }
     } else if (testIndex == 2){
       runCube();
+    } else if (testIndex == 3){
+      runUniverse();
+    } else if (testIndex == 4){
+      runIllusion();
     }
     drawListCstr("Test", TEST_ITEMS, TEST_COUNT, testIndex);
   }
