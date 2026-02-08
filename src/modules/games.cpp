@@ -37,6 +37,13 @@ static void rotateShape(int s[4][4]){
 }
 
 void runTetris(){
+  int prevRot = M5.Display.getRotation();
+  M5.Display.setRotation(0); // portrait for tetris
+  delay(20);
+  int dispW = M5.Display.width();
+  int dispH = M5.Display.height();
+  const int statusH = 16;
+
   const int W = 10, H = 20;
   uint16_t grid[H][W];
   for (int y=0;y<H;y++) for(int x=0;x<W;x++) grid[y][x] = 0;
@@ -54,6 +61,28 @@ void runTetris(){
   bool rotateLatch = false;
   bool gameOver = false;
   bool exitGame = false;
+
+  auto darken = [&](uint16_t c, uint8_t shift){
+    uint8_t r = (c >> 11) & 0x1F;
+    uint8_t g = (c >> 5) & 0x3F;
+    uint8_t b = c & 0x1F;
+    r = (r > shift) ? (r - shift) : 0;
+    g = (g > shift) ? (g - (shift * 2)) : 0;
+    b = (b > shift) ? (b - shift) : 0;
+    return (uint16_t)((r << 11) | (g << 5) | b);
+  };
+
+  auto drawStatusT = [&](){
+    M5.Display.fillRect(0,0,dispW,statusH,BLACK);
+    M5.Display.setTextSize(1);
+    M5.Display.setTextColor(WHITE);
+    M5.Display.setCursor(2,2);
+    M5.Display.print("Bat:");
+    int bat = M5.Power.getBatteryLevel();
+    uint16_t c = (bat<=20)?RED:((bat<=50)?YELLOW:GREEN);
+    M5.Display.setTextColor(c);
+    M5.Display.printf("%d%%", bat);
+  };
 
   auto canPlace = [&](int nx, int ny, int s[4][4]){
     for (int y=0;y<4;y++) for (int x=0;x<4;x++){
@@ -130,32 +159,81 @@ void runTetris(){
     }
 
     M5.Display.fillScreen(BLACK);
-    drawStatus();
+    drawStatusT();
+
+    int cell = 10;
+    int boardW = W * cell;
+    int boardH = H * cell;
+    int ox = 2;
+    int oy = statusH + 4;
+    if (oy + boardH > dispH - 4){
+      cell = 9;
+      boardW = W * cell;
+      boardH = H * cell;
+    }
+
+    // board frame + grid
+    M5.Display.drawRect(ox-2, oy-2, boardW+4, boardH+4, 0x39E7);
+    for (int y=0;y<=H;y++){
+      int yy = oy + y*cell;
+      M5.Display.drawFastHLine(ox, yy, boardW, 0x18C3);
+    }
+    for (int x=0;x<=W;x++){
+      int xx = ox + x*cell;
+      M5.Display.drawFastVLine(xx, oy, boardH, 0x18C3);
+    }
+
+    // stats panel
+    int panelX = ox + boardW + 6;
     M5.Display.setTextColor(WHITE);
-    M5.Display.setCursor(150, STATUS_H + 4);
+    M5.Display.setCursor(panelX, statusH + 6);
     M5.Display.printf("S:%d", score);
-    M5.Display.setCursor(150, STATUS_H + 16);
+    M5.Display.setCursor(panelX, statusH + 18);
     M5.Display.printf("L:%d", level);
-    M5.Display.setCursor(150, STATUS_H + 28);
+    M5.Display.setCursor(panelX, statusH + 30);
     M5.Display.printf("H:%d", high);
 
-    int cell = 6;
-    int ox = 12;
-    int oy = STATUS_H + 4;
+    // next piece preview
+    int next = (cur + 1) % 7;
+    int px0 = panelX;
+    int py0 = statusH + 46;
+    M5.Display.setTextColor(COLOR_DIM);
+    M5.Display.setCursor(panelX, statusH + 42);
+    M5.Display.print("NEXT");
+    for (int y=0;y<4;y++) for (int x=0;x<4;x++){
+      if (!TETS[next].shape[y][x]) continue;
+      int px = px0 + x*(cell-3);
+      int py = py0 + y*(cell-3);
+      uint16_t c = TETS[next].color;
+      M5.Display.fillRect(px, py, cell-4, cell-4, c);
+      M5.Display.drawRect(px, py, cell-4, cell-4, darken(c, 4));
+    }
+
+    // blocks
     for (int y=0;y<H;y++) for (int x=0;x<W;x++){
-      if (grid[y][x]) M5.Display.fillRect(ox + x*cell, oy + y*cell, cell-1, cell-1, grid[y][x]);
+      if (!grid[y][x]) continue;
+      int px = ox + x*cell + 1;
+      int py = oy + y*cell + 1;
+      uint16_t c = grid[y][x];
+      M5.Display.fillRect(px, py, cell-2, cell-2, c);
+      M5.Display.drawRect(px, py, cell-2, cell-2, darken(c, 4));
+      M5.Display.drawFastHLine(px+1, py+1, cell-4, 0xFFFF);
     }
     for (int y=0;y<4;y++) for (int x=0;x<4;x++){
       if (!shape[y][x]) continue;
-      int px = ox + (sx + x)*cell;
-      int py = oy + (sy + y)*cell;
-      M5.Display.fillRect(px, py, cell-1, cell-1, TETS[cur].color);
+      int px = ox + (sx + x)*cell + 1;
+      int py = oy + (sy + y)*cell + 1;
+      uint16_t c = TETS[cur].color;
+      M5.Display.fillRect(px, py, cell-2, cell-2, c);
+      M5.Display.drawRect(px, py, cell-2, cell-2, darken(c, 4));
+      M5.Display.drawFastHLine(px+1, py+1, cell-4, 0xFFFF);
     }
     delay(10);
   }
 
   setScore("tetris_last", score);
   if (gameOver && score > high) setScore("tetris_h", score);
+  M5.Display.setRotation(prevRot);
 }
 
 void runFlappy(){

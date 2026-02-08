@@ -15,6 +15,8 @@ bool textInput(const char* title, String &out, int maxLen, bool mask){
   const int topCount = 5;
 
   int cursor = 0;
+  int row = 0; // 0=top keys, 1..4=text rows
+  int col = 0;
   bool caps = false;
   bool symbol = false;
   String value = out;
@@ -47,6 +49,27 @@ bool textInput(const char* title, String &out, int maxLen, bool mask){
 
   auto keyCount = [&](){
     return topCount + (int)strlen(row1) + (int)strlen(row2) + (int)strlen(row3) + (int)strlen(row4);
+  };
+
+  auto rowLen = [&] (int r) -> int {
+    if (r == 0) return topCount;
+    const char* r1 = symbol ? row1s : row1;
+    const char* r2 = symbol ? row2s : (caps ? row2s : row2);
+    const char* r3 = symbol ? row3s : (caps ? row3s : row3);
+    const char* r4 = symbol ? row4s : (caps ? row4s : row4);
+    if (r == 1) return (int)strlen(r1);
+    if (r == 2) return (int)strlen(r2);
+    if (r == 3) return (int)strlen(r3);
+    return (int)strlen(r4);
+  };
+
+  auto cursorFrom = [&] (int r, int c) -> int {
+    if (r == 0) return c;
+    int idx = topCount;
+    if (r >= 2) idx += (int)strlen(symbol ? row1s : row1);
+    if (r >= 3) idx += (int)strlen(symbol ? row2s : (caps ? row2s : row2));
+    if (r >= 4) idx += (int)strlen(symbol ? row3s : (caps ? row3s : row3));
+    return idx + c;
   };
 
   auto draw = [&](){
@@ -116,53 +139,28 @@ bool textInput(const char* title, String &out, int maxLen, bool mask){
 
     M5.Display.setTextColor(COLOR_DIM);
     M5.Display.setCursor(6, SCREEN_H-10);
-    M5.Display.print("Prev:Down Hold:Up  Next:Right Hold:Left");
+    M5.Display.print("Prev:Down  Next:Right  M5:Select");
   };
 
   int total = keyCount();
+  row = 0; col = 0; cursor = 0;
   draw();
-  bool pwrDown = false;
-  bool pwrLong = false;
-  uint32_t pwrStart = 0;
-  bool bDown = false;
-  bool bLong = false;
-  uint32_t bStart = 0;
   while (true){
     M5.update();
     if (M5.BtnPWR.wasPressed()){
-      pwrDown = true;
-      pwrLong = false;
-      pwrStart = millis();
-    }
-    if (pwrDown && !pwrLong && (millis() - pwrStart > 500)){
-      cursor = (cursor - 1 + total) % total;
-      pwrLong = true;
+      row = (row + 1) % 5;
+      int maxC = rowLen(row);
+      if (col >= maxC) col = maxC - 1;
+      if (col < 0) col = 0;
+      cursor = cursorFrom(row, col);
       draw();
-    }
-    if (M5.BtnPWR.wasReleased()){
-      if (!pwrLong){
-        cursor = (cursor + 1) % total;
-        draw();
-      }
-      pwrDown = false;
     }
 
     if (M5.BtnB.wasPressed()){
-      bDown = true;
-      bLong = false;
-      bStart = millis();
-    }
-    if (bDown && !bLong && (millis() - bStart > 500)){
-      cursor = (cursor - 1 + total) % total;
-      bLong = true;
+      int maxC = rowLen(row);
+      col = (col + 1) % maxC;
+      cursor = cursorFrom(row, col);
       draw();
-    }
-    if (M5.BtnB.wasReleased()){
-      if (!bLong){
-        cursor = (cursor + 1) % total;
-        draw();
-      }
-      bDown = false;
     }
     if (M5.BtnA.wasPressed()){
       if (cursor < topCount){
@@ -171,6 +169,9 @@ bool textInput(const char* title, String &out, int maxLen, bool mask){
           if (!caps && !symbol) { caps = true; }
           else if (caps && !symbol) { caps = false; symbol = true; }
           else { symbol = false; }
+          // reset cursor mapping after layout change
+          if (col >= rowLen(row)) col = rowLen(row) - 1;
+          cursor = cursorFrom(row, col);
           draw();
         }
         if (cursor == 2){ if (value.length()) value.remove(value.length()-1); draw(); } // DEL

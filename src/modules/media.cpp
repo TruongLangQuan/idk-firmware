@@ -2,10 +2,27 @@
 #include "core/ui.h"
 
 // --- SPIFFS scanning ---
+static String baseNameOf(const String &path){
+  int s = path.lastIndexOf('/');
+  if (s >= 0) return path.substring(s + 1);
+  return path;
+}
+
+static bool existsByBase(String *arr, int count, const String &base){
+  for (int i=0;i<count;i++){
+    String n = baseNameOf(arr[i]);
+    if (n.equalsIgnoreCase(base)) return true;
+  }
+  return false;
+}
+
 static void addUnique(String *arr, int &count, const String &name){
   for (int i=0;i<count;i++){
     if (arr[i] == name) return;
   }
+  // De-dup by base name to avoid showing the same file twice
+  String base = baseNameOf(name);
+  if (existsByBase(arr, count, base)) return;
   if (count < MAX_FILES) arr[count++] = name;
 }
 
@@ -21,7 +38,8 @@ static void scanDir(fs::FS &fs, const char* path){
   if (!dir || !dir.isDirectory()) return;
   File f = dir.openNextFile();
   while (f) {
-    String name = String(path) + "/" + String(f.name());
+    String n = String(f.name());
+    String name = n.startsWith("/") ? n : (String(path) + "/" + n);
     name = normPath(name);
     if (name.endsWith(".png")) addUnique(imgFiles, imgCount, name);
     else if (name.endsWith(".gif")) addUnique(gifFiles, gifCount, name);
@@ -42,6 +60,17 @@ void scanSPIFFS(){
     File f = root.openNextFile();
     while (f) {
       String n = normPath(String(f.name()));
+      // Skip entries already found in subfolders (avoid duplicates like gifs/boot.gif + boot.gif)
+      String base = n;
+      int s = base.lastIndexOf('/');
+      if (s >= 0) base = base.substring(s+1);
+      if (existsByBase(imgFiles, imgCount, base) ||
+          existsByBase(gifFiles, gifCount, base) ||
+          existsByBase(irFiles, irCount, base) ||
+          existsByBase(txtFiles, txtCount, base)) {
+        f = root.openNextFile();
+        continue;
+      }
       if (n.endsWith(".png")) addUnique(imgFiles, imgCount, n);
       else if (n.endsWith(".gif")) addUnique(gifFiles, gifCount, n);
       else if (n.endsWith(".ir")) addUnique(irFiles, irCount, n);

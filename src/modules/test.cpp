@@ -262,17 +262,26 @@ void runCube(){
 void runUniverse(){
   int mode = 0; // 0 black hole,1 neutron,2 nebula,3 galaxy,4 star system
   float angle = 0.0f;
+
+  struct P3 { float x,y,z; uint16_t c; };
+  static P3 stars[80];
   static bool seeded = false;
-  static int16_t sx[60], sy[60];
-  static uint8_t sr[60];
   if (!seeded){
     seeded = true;
-    for (int i=0;i<60;i++){
-      sx[i] = rand() % SCREEN_W;
-      sy[i] = STATUS_H + (rand() % (SCREEN_H-STATUS_H));
-      sr[i] = rand() % 3;
+    for (int i=0;i<80;i++){
+      stars[i].x = (rand()%200 - 100) / 10.0f;
+      stars[i].y = (rand()%200 - 100) / 10.0f;
+      stars[i].z = (rand()%200) / 10.0f + 2.0f;
+      stars[i].c = (i%3==0)?WHITE:((i%3==1)?0x7BEF:0x39E7);
     }
   }
+
+  auto project = [&](float x, float y, float z, int &sx, int &sy){
+    float zz = z + 8.0f;
+    sx = (int)(SCREEN_W/2 + x * 16.0f / zz);
+    sy = (int)(STATUS_H + (SCREEN_H-STATUS_H)/2 + y * 16.0f / zz);
+  };
+
   while (true){
     M5.update();
     if (M5.BtnPWR.wasPressed()) break;
@@ -282,74 +291,117 @@ void runUniverse(){
     drawStatus();
     M5.Display.setTextColor(COLOR_DIM);
     M5.Display.setCursor(6, STATUS_H + 2);
-    if (mode==0) M5.Display.print("Black Hole");
-    else if (mode==1) M5.Display.print("Neutron Star");
-    else if (mode==2) M5.Display.print("Nebula");
-    else if (mode==3) M5.Display.print("Galaxy");
-    else M5.Display.print("Star System");
+    if (mode==0) M5.Display.print("Black Hole 3D");
+    else if (mode==1) M5.Display.print("Neutron Star 3D");
+    else if (mode==2) M5.Display.print("Nebula 3D");
+    else if (mode==3) M5.Display.print("Galaxy 3D");
+    else M5.Display.print("Star System 3D");
 
-    int cx = SCREEN_W/2;
-    int cy = STATUS_H + (SCREEN_H-STATUS_H)/2;
-
-    // starfield
-    for (int i=0;i<60;i++){
-      int x = (sx[i] + (int)(angle*10*(sr[i]+1))) % SCREEN_W;
-      int y = sy[i];
-      uint16_t c = (sr[i]==0)?WHITE:(sr[i]==1?0x7BEF:0x39E7);
-      M5.Display.drawPixel(x, y, c);
+    // 3D starfield
+    for (int i=0;i<80;i++){
+      float x = stars[i].x;
+      float y = stars[i].y;
+      float z = stars[i].z + 0.5f * sin(angle*0.2f + i);
+      int sx, sy;
+      project(x, y, z, sx, sy);
+      if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
+        M5.Display.drawPixel(sx, sy, stars[i].c);
+      }
     }
 
-    if (mode==0){
-      // black hole
-      for (int r=30;r>6;r-=2){
-        uint16_t c = (r%6==0)?0x7BEF:0x39E7;
-        M5.Display.drawCircle(cx, cy, r, c);
-      }
-      M5.Display.fillCircle(cx, cy, 12, BLACK);
-      for (int i=0;i<12;i++){
-        float a = angle*0.7f + i*0.5f;
-        int x = cx + (int)(cos(a)*34);
-        int y = cy + (int)(sin(a)*12);
-        M5.Display.drawPixel(x, y, YELLOW);
-      }
-    } else if (mode==1){
-      // neutron star
-      M5.Display.fillCircle(cx, cy, 8, 0xFFFF);
-      for (int i=0;i<10;i++){
-        int x = cx + (int)(cos(angle + i*0.6f)*24);
-        int y = cy + (int)(sin(angle + i*0.6f)*24);
-        M5.Display.drawLine(cx, cy, x, y, 0xBDF7);
-      }
-    } else if (mode==2){
-      // nebula
-      for (int r=34;r>6;r-=3){
-        uint16_t c = (r%9==0)?0x07FF:((r%6==0)?0xF81F:0x5B6F);
-        M5.Display.drawCircle(cx, cy, r, c);
-      }
-    } else if (mode==3){
-      // galaxy spiral
+    // 3D bodies
+    if (mode == 0){
+      // black hole: rotating accretion disk + center
       for (int i=0;i<60;i++){
-        float a = i*0.25f + angle;
-        float r = i*0.6f;
-        int x = cx + (int)(cos(a)*r);
-        int y = cy + (int)(sin(a)*r*0.6f);
-        M5.Display.drawPixel(x, y, WHITE);
+        float a = angle*0.8f + i*0.12f;
+        float r = 3.0f + (i%20)*0.25f;
+        float x = cos(a) * r;
+        float y = sin(a) * r * 0.35f;
+        float z = sin(a*1.3f) * 1.0f;
+        int sx, sy;
+        project(x, y, z, sx, sy);
+        if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
+          M5.Display.drawPixel(sx, sy, (i%3==0)?YELLOW:0xFFE0);
+        }
       }
-      M5.Display.fillCircle(cx, cy, 4, YELLOW);
+      int cx, cy;
+      project(0,0,0, cx, cy);
+      M5.Display.fillCircle(cx, cy, 6, BLACK);
+      M5.Display.drawCircle(cx, cy, 7, 0x7BEF);
+    } else if (mode == 1){
+      // neutron star with 3D beams
+      int cx, cy;
+      project(0,0,0, cx, cy);
+      M5.Display.fillCircle(cx, cy, 5, 0xFFFF);
+      for (int i=0;i<16;i++){
+        float a = angle + i*0.4f;
+        float x = cos(a)*3.5f;
+        float y = sin(a)*3.5f;
+        int sx, sy;
+        project(x,y,0, sx, sy);
+        M5.Display.drawLine(cx, cy, sx, sy, 0xBDF7);
+      }
+      for (int i=0;i<2;i++){
+        float a = angle + (i?3.14f:0);
+        float x = cos(a)*7.0f;
+        float y = sin(a)*7.0f;
+        int sx, sy;
+        project(x,y,0, sx, sy);
+        M5.Display.drawLine(cx, cy, sx, sy, 0x07FF);
+      }
+    } else if (mode == 2){
+      // nebula: 3D cloud
+      for (int i=0;i<60;i++){
+        float a = angle*0.3f + i*0.2f;
+        float r = 2.0f + (i%15)*0.3f;
+        float x = cos(a)*r;
+        float y = sin(a*0.7f)*r*0.6f;
+        float z = cos(a*0.5f)*1.5f;
+        int sx, sy;
+        project(x,y,z, sx, sy);
+        uint16_t c = (i%3==0)?0xF81F:((i%3==1)?0x07FF:0x5B6F);
+        if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
+          M5.Display.drawPixel(sx, sy, c);
+        }
+      }
+    } else if (mode == 3){
+      // galaxy: 3D spiral arms
+      for (int i=0;i<90;i++){
+        float a = i*0.2f + angle;
+        float r = i*0.08f;
+        float x = cos(a)*r;
+        float y = sin(a)*r*0.4f;
+        float z = sin(a*0.7f)*0.6f;
+        int sx, sy;
+        project(x,y,z, sx, sy);
+        if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
+          M5.Display.drawPixel(sx, sy, (i%5==0)?0x7BEF:WHITE);
+        }
+      }
+      int cx, cy;
+      project(0,0,0, cx, cy);
+      M5.Display.fillCircle(cx, cy, 3, YELLOW);
     } else {
-      // star system
-      M5.Display.fillCircle(cx, cy, 6, YELLOW);
+      // star system: 3D orbits
+      int cx, cy;
+      project(0,0,0, cx, cy);
+      M5.Display.fillCircle(cx, cy, 4, YELLOW);
       for (int i=0;i<3;i++){
-        float a = angle*(0.6f+i*0.2f);
-        int r = 16 + i*8;
-        int x = cx + (int)(cos(a)*r);
-        int y = cy + (int)(sin(a)*r);
+        float a = angle*(0.5f+i*0.2f);
+        float r = 2.0f + i*2.0f;
+        float x = cos(a)*r;
+        float y = sin(a)*r;
+        float z = sin(a*0.6f);
+        int sx, sy;
+        project(x,y,z, sx, sy);
         uint16_t c = (i==0)?0x07E0:(i==1?0xF800:0x001F);
-        M5.Display.fillCircle(x, y, 2+i%2, c);
+        if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
+          M5.Display.fillCircle(sx, sy, 2, c);
+        }
       }
     }
 
-    angle += 0.03f;
+    angle += 0.04f;
     delay(16);
   }
 }

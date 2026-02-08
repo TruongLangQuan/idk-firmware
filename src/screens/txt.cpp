@@ -16,7 +16,7 @@ void screenTxtListUpdate(){
   }
 
   if (M5.BtnB.wasPressed()) { txtIndex = (txtIndex + 1) % txtCount; drawList("Text", txtFiles, txtCount, txtIndex); }
-  if (M5.BtnPWR.wasPressed()) { txtIndex = (txtIndex - 1 + txtCount) % txtCount; drawList("Text", txtFiles, txtCount, txtIndex); }
+  if (M5.BtnPWR.wasPressed()) { txtIndex = (txtIndex + 1) % txtCount; drawList("Text", txtFiles, txtCount, txtIndex); }
   if (M5.BtnPWR.pressedFor(800)) { screen = SCR_MENU; drawMenu(); }
   if (M5.BtnA.wasPressed()){
     showTXT(SPIFFS, txtFiles[txtIndex].c_str());
