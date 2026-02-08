@@ -297,7 +297,7 @@ void runUniverse(){
     else if (mode==3) M5.Display.print("Galaxy 3D");
     else M5.Display.print("Star System 3D");
 
-    // 3D starfield
+    // 3D starfield (draw larger points depending on depth)
     for (int i=0;i<80;i++){
       float x = stars[i].x;
       float y = stars[i].y;
@@ -305,7 +305,11 @@ void runUniverse(){
       int sx, sy;
       project(x, y, z, sx, sy);
       if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
-        M5.Display.drawPixel(sx, sy, stars[i].c);
+        float zz = z + 8.0f;
+        int sr = (int)(3.5f / zz); // size inversely proportional to depth
+        if (sr < 1) sr = 1;
+        if (sr > 4) sr = 4;
+        M5.Display.fillCircle(sx, sy, sr, stars[i].c);
       }
     }
 
@@ -314,25 +318,29 @@ void runUniverse(){
       // black hole: rotating accretion disk + center
       for (int i=0;i<60;i++){
         float a = angle*0.8f + i*0.12f;
-        float r = 3.0f + (i%20)*0.25f;
+        float r = 4.0f + (i%20)*0.35f; // slightly larger disk
         float x = cos(a) * r;
         float y = sin(a) * r * 0.35f;
         float z = sin(a*1.3f) * 1.0f;
         int sx, sy;
         project(x, y, z, sx, sy);
         if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
-          M5.Display.drawPixel(sx, sy, (i%3==0)?YELLOW:0xFFE0);
+          float zz = z + 8.0f;
+          int pr = (int)(2.5f / zz);
+          if (pr < 1) pr = 1;
+          if (pr > 3) pr = 3;
+          M5.Display.fillCircle(sx, sy, pr, (i%3==0)?YELLOW:0xFFE0);
         }
       }
       int cx, cy;
       project(0,0,0, cx, cy);
-      M5.Display.fillCircle(cx, cy, 6, BLACK);
-      M5.Display.drawCircle(cx, cy, 7, 0x7BEF);
+      M5.Display.fillCircle(cx, cy, 9, BLACK);
+      M5.Display.drawCircle(cx, cy, 10, 0x7BEF);
     } else if (mode == 1){
       // neutron star with 3D beams
       int cx, cy;
       project(0,0,0, cx, cy);
-      M5.Display.fillCircle(cx, cy, 5, 0xFFFF);
+      M5.Display.fillCircle(cx, cy, 8, 0xFFFF);
       for (int i=0;i<16;i++){
         float a = angle + i*0.4f;
         float x = cos(a)*3.5f;
@@ -361,7 +369,11 @@ void runUniverse(){
         project(x,y,z, sx, sy);
         uint16_t c = (i%3==0)?0xF81F:((i%3==1)?0x07FF:0x5B6F);
         if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
-          M5.Display.drawPixel(sx, sy, c);
+          float zz = z + 8.0f;
+          int pr = (int)(2.0f / zz);
+          if (pr < 1) pr = 1;
+          if (pr > 3) pr = 3;
+          M5.Display.fillCircle(sx, sy, pr, c);
         }
       }
     } else if (mode == 3){
@@ -375,17 +387,21 @@ void runUniverse(){
         int sx, sy;
         project(x,y,z, sx, sy);
         if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
-          M5.Display.drawPixel(sx, sy, (i%5==0)?0x7BEF:WHITE);
+          float zz = z + 8.0f;
+          int pr = (int)(2.5f / zz);
+          if (pr < 1) pr = 1;
+          if (pr > 3) pr = 3;
+          M5.Display.fillCircle(sx, sy, pr, (i%5==0)?0x7BEF:WHITE);
         }
       }
       int cx, cy;
       project(0,0,0, cx, cy);
-      M5.Display.fillCircle(cx, cy, 3, YELLOW);
+      M5.Display.fillCircle(cx, cy, 6, YELLOW);
     } else {
       // star system: 3D orbits
       int cx, cy;
       project(0,0,0, cx, cy);
-      M5.Display.fillCircle(cx, cy, 4, YELLOW);
+      M5.Display.fillCircle(cx, cy, 6, YELLOW);
       for (int i=0;i<3;i++){
         float a = angle*(0.5f+i*0.2f);
         float r = 2.0f + i*2.0f;
@@ -396,7 +412,8 @@ void runUniverse(){
         project(x,y,z, sx, sy);
         uint16_t c = (i==0)?0x07E0:(i==1?0xF800:0x001F);
         if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
-          M5.Display.fillCircle(sx, sy, 2, c);
+          int pr = 2 + i; // make outer planets larger
+          M5.Display.fillCircle(sx, sy, pr, c);
         }
       }
     }
