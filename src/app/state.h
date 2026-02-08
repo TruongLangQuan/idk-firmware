@@ -50,14 +50,14 @@ extern const int MENU_COUNT;
 extern int menuIndex;
 
 // ===== File lists =====
-#define MAX_FILES 24
+#define MAX_FILES 12
 extern String imgFiles[MAX_FILES]; extern int imgCount; extern int imgIndex;
 extern String gifFiles[MAX_FILES]; extern int gifCount; extern int gifIndex;
 extern String irFiles[MAX_FILES];  extern int irCount;  extern int irIndex;
 extern String txtFiles[MAX_FILES]; extern int txtCount;
 
 // ===== WiFi =====
-#define MAX_WIFI 16
+#define MAX_WIFI 8
 extern String wifiSSID[MAX_WIFI];
 extern int wifiRSSI[MAX_WIFI];
 extern bool wifiSecured[MAX_WIFI];
@@ -65,7 +65,7 @@ extern int wifiCount;
 extern int wifiIndex;
 
 // ===== IR commands =====
-#define MAX_CMDS 64
+#define MAX_CMDS 32
 extern String cmdName[MAX_CMDS];
 extern uint32_t cmdHex[MAX_CMDS];
 extern int cmdCount;
