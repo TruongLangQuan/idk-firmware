@@ -3,6 +3,7 @@
 #include <tinyexpr.h>
 #include <math.h>
 #include <ctype.h>
+#include <cstring>
 
 static String normalizeExpr(const String &in){
   String out = "";
@@ -47,15 +48,43 @@ void drawPlot(const String &expr){
   M5.Display.setCursor(cx+4, STATUS_H+2);
   M5.Display.print("y");
 
-  const int ticks[] = {-10, -5, 0, 5, 10};
+  // Increased axis range to -100 to 100
+  const int axisMin = -100;
+  const int axisMax = 100;
+  const int axisRange = axisMax - axisMin;
+  
+  // Smaller grid lines - every 10 units for better visibility
+  for (int x=axisMin; x<=axisMax; x+=10){
+    int px = (int)((x - axisMin) * (SCREEN_W-1) / (double)axisRange);
+    if (px >= 0 && px < SCREEN_W){
+      // Draw lighter grid lines
+      uint16_t gridColor = (x % 50 == 0) ? 0x39E7 : 0x18C3; // Darker for major lines
+      M5.Display.drawFastVLine(px, STATUS_H, SCREEN_H-STATUS_H, gridColor);
+    }
+  }
+  for (int y=axisMin; y<=axisMax; y+=10){
+    int py = cy - (int)(y * ((SCREEN_H-STATUS_H-1) / (double)axisRange));
+    if (py >= STATUS_H && py < SCREEN_H){
+      // Draw lighter grid lines
+      uint16_t gridColor = (y % 50 == 0) ? 0x39E7 : 0x18C3; // Darker for major lines
+      M5.Display.drawFastHLine(0, py, SCREEN_W, gridColor);
+    }
+  }
+  
+  // Axis labels - show every 50 units
+  const int ticks[] = {-100, -50, 0, 50, 100};
   for (int i=0;i<5;i++){
     int v = ticks[i];
-    int px = (int)((v + 10) * (SCREEN_W-1) / 20.0);
-    M5.Display.setCursor(px-4, cy+4);
-    M5.Display.printf("%d", v);
-    int py = cy - (int)(v * ((SCREEN_H-STATUS_H-1) / 20.0));
-    M5.Display.setCursor(cx+4, py-4);
-    M5.Display.printf("%d", v);
+    int px = (int)((v - axisMin) * (SCREEN_W-1) / (double)axisRange);
+    if (px >= 0 && px < SCREEN_W){
+      M5.Display.setCursor(px-8, cy+4);
+      M5.Display.printf("%d", v);
+    }
+    int py = cy - (int)(v * ((SCREEN_H-STATUS_H-1) / (double)axisRange));
+    if (py >= STATUS_H && py < SCREEN_H){
+      M5.Display.setCursor(cx+4, py-4);
+      M5.Display.printf("%d", v);
+    }
   }
 
   double xval = 0;
@@ -70,24 +99,29 @@ void drawPlot(const String &expr){
     return;
   }
 
+  // Plot with improved resolution and range
   for (int px=0; px<SCREEN_W; px++){
-    double x = ((double)px / (SCREEN_W-1)) * 20.0 - 10.0;
+    double x = ((double)px / (SCREEN_W-1)) * axisRange + axisMin;
     xval = x;
     double y = te_eval(e);
-    if (y < -10 || y > 10) continue;
-    int py = cy - (int)(y * ((SCREEN_H-STATUS_H-1) / 20.0));
-    if (py >= STATUS_H && py < SCREEN_H) M5.Display.drawPixel(px, py, YELLOW);
+    if (y < axisMin || y > axisMax) continue;
+    int py = cy - (int)((y - axisMin) * ((SCREEN_H-STATUS_H-1) / (double)axisRange));
+    if (py >= STATUS_H && py < SCREEN_H) {
+      // Draw thicker line for better visibility
+      M5.Display.drawPixel(px, py, YELLOW);
+      if (px > 0) M5.Display.drawLine(px-1, py, px, py, YELLOW);
+    }
   }
   te_free(e);
 }
 
 void runCube(){
   float angle = 0.0f;
-  int shape = 0; // 0 cube, 1 tetra, 2 octa, 3 tesseract, 4 4D simplex, 5 4D cross
+  int shape = 0; // 0 cube, 1 tetra, 2 octa, 3 prism, 4 pyramid, 5 icosahedron, 6 dodecahedron, 7 torus, 8 sphere, 9 cylinder, 10 cone, 11 4D Cube, 12 4D Simplex, 13 4D Cross
   while (true){
     M5.update();
     if (M5.BtnPWR.wasPressed()) break;
-    if (M5.BtnB.wasPressed()) { shape = (shape + 1) % 6; }
+    if (M5.BtnB.wasPressed()) { shape = (shape + 1) % 14; }
 
     M5.Display.fillScreen(BLACK);
     drawStatus();
@@ -96,8 +130,16 @@ void runCube(){
     if (shape == 0) M5.Display.print("Cube");
     else if (shape == 1) M5.Display.print("Tetra");
     else if (shape == 2) M5.Display.print("Octa");
-    else if (shape == 3) M5.Display.print("4D Cube");
-    else if (shape == 4) M5.Display.print("4D Simplex");
+    else if (shape == 3) M5.Display.print("Prism");
+    else if (shape == 4) M5.Display.print("Pyramid");
+    else if (shape == 5) M5.Display.print("Icosa");
+    else if (shape == 6) M5.Display.print("Dodeca");
+    else if (shape == 7) M5.Display.print("Torus");
+    else if (shape == 8) M5.Display.print("Sphere");
+    else if (shape == 9) M5.Display.print("Cylinder");
+    else if (shape == 10) M5.Display.print("Cone");
+    else if (shape == 11) M5.Display.print("4D Cube");
+    else if (shape == 12) M5.Display.print("4D Simplex");
     else M5.Display.print("4D Cross");
 
     int cx = SCREEN_W/2;
@@ -111,11 +153,11 @@ void runCube(){
       }
     };
 
-    if (shape >= 3){
+    if (shape >= 11){
       // 4D tesseract
       float pts4[16][4];
       int vcount = 0;
-      if (shape == 3){
+      if (shape == 11){
         for (int xi=0; xi<2; xi++){
           for (int yi=0; yi<2; yi++){
             for (int zi=0; zi<2; zi++){
@@ -129,7 +171,7 @@ void runCube(){
             }
           }
         }
-      } else if (shape == 4){
+      } else if (shape == 12){
         // 4D simplex (5 vertices)
         float a = s;
         float verts[5][4] = {
@@ -174,7 +216,7 @@ void runCube(){
         proj[i][1] = cy + (int)(y * f3);
       }
       // edges
-      if (shape == 3){
+      if (shape == 11){
         for (int a=0; a<vcount; a++){
           for (int b=a+1; b<vcount; b++){
             int diff = a ^ b;
@@ -183,7 +225,7 @@ void runCube(){
             }
           }
         }
-      } else if (shape == 4){
+      } else if (shape == 12){
         for (int a=0;a<vcount;a++){
           for (int b=a+1;b<vcount;b++){
             M5.Display.drawLine(proj[a][0], proj[a][1], proj[b][0], proj[b][1], WHITE);
@@ -200,7 +242,7 @@ void runCube(){
       }
     } else {
       // 3D shapes
-      float pts3[8][3];
+      float pts3[12][3]; // Reduced size to save RAM
       int vcount = 0;
       if (shape == 0){
         float cube[8][3] = {
@@ -215,12 +257,97 @@ void runCube(){
         };
         memcpy(pts3, tet, sizeof(tet));
         vcount = 4;
-      } else {
+      } else if (shape == 2) {
         float oct[6][3] = {
           {0,0,s},{0,0,-s},{0,s,0},{0,-s,0},{s,0,0},{-s,0,0}
         };
         memcpy(pts3, oct, sizeof(oct));
         vcount = 6;
+      } else if (shape == 3) {
+        // triangular prism (6 vertices)
+        float prism[6][3] = {
+          {-s,-s, -s},{s,-s,-s},{0,s,-s},
+          {-s,-s,s},{s,-s,s},{0,s,s}
+        };
+        memcpy(pts3, prism, sizeof(prism));
+        vcount = 6;
+      } else if (shape == 4) {
+        // square pyramid (5 vertices)
+        float pyr[5][3] = {
+          {-s,-s,-s},{s,-s,-s},{s,s,-s},{-s,s,-s},{0,0,s}
+        };
+        for (int i=0;i<5;i++) for (int j=0;j<3;j++) pts3[i][j] = pyr[i][j];
+        vcount = 5;
+      } else if (shape == 5) {
+        // icosahedron simplified (8 vertices instead of 12)
+        float icosa[8][3] = {
+          {-s, s, 0}, {s, s, 0}, {-s, -s, 0}, {s, -s, 0},
+          {0, -s, s}, {0, s, s}, {0, -s, -s}, {0, s, -s}
+        };
+        for (int i=0;i<8;i++) for (int j=0;j<3;j++) pts3[i][j] = icosa[i][j];
+        vcount = 8;
+      } else if (shape == 6) {
+        // dodecahedron simplified (12 vertices instead of 20)
+        float t = (1.0f + sqrtf(5.0f)) / 2.0f;
+        float dodeca[12][3] = {
+          {s, s, s}, {s, s, -s}, {s, -s, s}, {s, -s, -s},
+          {-s, s, s}, {-s, s, -s}, {-s, -s, s}, {-s, -s, -s},
+          {0, s/t, t*s}, {0, -s/t, t*s}, {t*s, 0, s/t}, {-t*s, 0, s/t}
+        };
+        for (int i=0;i<12;i++) for (int j=0;j<3;j++) pts3[i][j] = dodeca[i][j];
+        vcount = 12;
+      } else if (shape == 7) {
+        // torus simplified (8 vertices)
+        int segments = 4;
+        for (int i=0;i<segments;i++){
+          float a1 = i * 2.0f * M_PI / segments;
+          for (int j=0;j<2;j++){
+            float a2 = j * 2.0f * M_PI / 2.0f;
+            float r = s * 0.6f;
+            float R = s * 1.2f;
+            pts3[i*2+j][0] = (R + r*cosf(a2)) * cosf(a1);
+            pts3[i*2+j][1] = (R + r*cosf(a2)) * sinf(a1);
+            pts3[i*2+j][2] = r * sinf(a2);
+          }
+        }
+        vcount = segments * 2;
+      } else if (shape == 8) {
+        // sphere approximation simplified (8 vertices)
+        int segments = 4;
+        for (int i=0;i<segments;i++){
+          float lat = (i - segments/2.0f) * M_PI / segments;
+          for (int j=0;j<2;j++){
+            float lon = j * M_PI;
+            pts3[i*2+j][0] = s * cosf(lat) * cosf(lon);
+            pts3[i*2+j][1] = s * cosf(lat) * sinf(lon);
+            pts3[i*2+j][2] = s * sinf(lat);
+          }
+        }
+        vcount = segments * 2;
+      } else if (shape == 9) {
+        // cylinder simplified (8 vertices)
+        int segments = 4;
+        for (int i=0;i<segments;i++){
+          float a = i * 2.0f * M_PI / segments;
+          pts3[i*2][0] = s * cosf(a);
+          pts3[i*2][1] = s * sinf(a);
+          pts3[i*2][2] = -s;
+          pts3[i*2+1][0] = s * cosf(a);
+          pts3[i*2+1][1] = s * sinf(a);
+          pts3[i*2+1][2] = s;
+        }
+        vcount = segments * 2;
+      } else if (shape == 10) {
+        // cone simplified (5 vertices)
+        pts3[0][0] = 0; pts3[0][1] = 0; pts3[0][2] = s*1.5f; // apex
+        int segments = 4;
+        for (int i=0;i<segments;i++){
+          float a = i * 2.0f * M_PI / segments;
+          pts3[i+1][0] = s * cosf(a);
+          pts3[i+1][1] = s * sinf(a);
+          pts3[i+1][2] = -s;
+        }
+        vcount = segments + 1;
       }
 
       float ca = cos(angle), sa = sin(angle);
@@ -235,7 +362,7 @@ void runCube(){
         float z2 = y*sb + z1*cb;
         pts3[i][0] = x1; pts3[i][1] = y1; pts3[i][2] = z2;
       }
-      int proj[8][2];
+      int proj[12][2];
       for (int i=0;i<vcount;i++){
         float z = pts3[i][2] + 80.0f;
         proj[i][0] = cx + (int)(pts3[i][0] * 80.0f / z);
@@ -248,9 +375,61 @@ void runCube(){
       } else if (shape == 1){
         const int edges[][2] = {{0,1},{0,2},{0,3},{1,2},{1,3},{2,3}};
         drawLines(vcount, proj, edges, 6);
-      } else {
+      } else if (shape == 2){
         const int edges[][2] = {{0,2},{0,3},{0,4},{0,5},{1,2},{1,3},{1,4},{1,5},{2,4},{2,5},{3,4},{3,5}};
         drawLines(vcount, proj, edges, 12);
+      } else if (shape == 3){
+        const int edges[][2] = {{0,1},{1,2},{2,0},{3,4},{4,5},{5,3},{0,3},{1,4},{2,5}};
+        drawLines(vcount, proj, edges, 9);
+      } else if (shape == 4){
+        const int edges[][2] = {{0,1},{1,2},{2,3},{3,0},{0,4},{1,4},{2,4},{3,4}};
+        drawLines(vcount, proj, edges, 8);
+      } else if (shape == 5){
+        // icosahedron edges (simplified - connect nearby vertices)
+        for (int i=0;i<vcount;i++){
+          for (int j=i+1;j<vcount;j++){
+            float dist = sqrtf(powf(pts3[i][0]-pts3[j][0],2) + powf(pts3[i][1]-pts3[j][1],2) + powf(pts3[i][2]-pts3[j][2],2));
+            if (dist < s*1.8f) M5.Display.drawLine(proj[i][0], proj[i][1], proj[j][0], proj[j][1], WHITE);
+          }
+        }
+      } else if (shape == 6){
+        // dodecahedron edges (connect nearby vertices)
+        for (int i=0;i<vcount;i++){
+          for (int j=i+1;j<vcount;j++){
+            float dist = sqrtf(powf(pts3[i][0]-pts3[j][0],2) + powf(pts3[i][1]-pts3[j][1],2) + powf(pts3[i][2]-pts3[j][2],2));
+            if (dist < s*2.2f) M5.Display.drawLine(proj[i][0], proj[i][1], proj[j][0], proj[j][1], WHITE);
+          }
+        }
+      } else if (shape == 7){
+        // torus edges
+        for (int i=0;i<vcount-1;i++){
+          M5.Display.drawLine(proj[i][0], proj[i][1], proj[i+1][0], proj[i+1][1], WHITE);
+        }
+        M5.Display.drawLine(proj[vcount-1][0], proj[vcount-1][1], proj[0][0], proj[0][1], WHITE);
+      } else if (shape == 8){
+        // sphere edges (connect nearby vertices)
+        for (int i=0;i<vcount;i++){
+          for (int j=i+1;j<vcount;j++){
+            float dist = sqrtf(powf(pts3[i][0]-pts3[j][0],2) + powf(pts3[i][1]-pts3[j][1],2) + powf(pts3[i][2]-pts3[j][2],2));
+            if (dist < s*1.5f) M5.Display.drawLine(proj[i][0], proj[i][1], proj[j][0], proj[j][1], WHITE);
+          }
+        }
+      } else if (shape == 9){
+        // cylinder edges
+        for (int i=0;i<vcount/2-1;i++){
+          M5.Display.drawLine(proj[i*2][0], proj[i*2][1], proj[(i+1)*2][0], proj[(i+1)*2][1], WHITE);
+          M5.Display.drawLine(proj[i*2+1][0], proj[i*2+1][1], proj[(i+1)*2+1][0], proj[(i+1)*2+1][1], WHITE);
+          M5.Display.drawLine(proj[i*2][0], proj[i*2][1], proj[i*2+1][0], proj[i*2+1][1], WHITE);
+        }
+        M5.Display.drawLine(proj[(vcount/2-1)*2][0], proj[(vcount/2-1)*2][1], proj[0][0], proj[0][1], WHITE);
+        M5.Display.drawLine(proj[(vcount/2-1)*2+1][0], proj[(vcount/2-1)*2+1][1], proj[1][0], proj[1][1], WHITE);
+      } else if (shape == 10){
+        // cone edges
+        for (int i=1;i<vcount;i++){
+          M5.Display.drawLine(proj[0][0], proj[0][1], proj[i][0], proj[i][1], WHITE);
+          if (i < vcount-1) M5.Display.drawLine(proj[i][0], proj[i][1], proj[i+1][0], proj[i+1][1], WHITE);
+        }
+        M5.Display.drawLine(proj[vcount-1][0], proj[vcount-1][1], proj[1][0], proj[1][1], WHITE);
       }
     }
 
@@ -264,22 +443,31 @@ void runUniverse(){
   float angle = 0.0f;
 
   struct P3 { float x,y,z; uint16_t c; };
-  static P3 stars[80];
+  // Further reduced star count to save RAM
+  static P3 stars[64];
   static bool seeded = false;
   if (!seeded){
     seeded = true;
-    for (int i=0;i<80;i++){
-      stars[i].x = (rand()%200 - 100) / 10.0f;
-      stars[i].y = (rand()%200 - 100) / 10.0f;
-      stars[i].z = (rand()%200) / 10.0f + 2.0f;
-      stars[i].c = (i%3==0)?WHITE:((i%3==1)?0x7BEF:0x39E7);
+    for (int i=0;i<64;i++){
+      // wider spread and deeper z to improve 3D feeling
+      stars[i].x = (rand()%800 - 400) / 10.0f; // -40 .. +40
+      stars[i].y = (rand()%600 - 300) / 10.0f; // -30 .. +30
+      stars[i].z = (rand()%700) / 10.0f + 5.0f; // 5 .. 75
+      // subtle palette variation
+      if (i % 6 == 0) stars[i].c = WHITE;
+      else if (i % 6 == 1) stars[i].c = 0xF81F; // pink
+      else if (i % 6 == 2) stars[i].c = 0x07FF; // cyan
+      else if (i % 6 == 3) stars[i].c = 0xFFE0; // light yellow
+      else stars[i].c = 0x7BEF; // dim
     }
   }
 
   auto project = [&](float x, float y, float z, int &sx, int &sy){
-    float zz = z + 8.0f;
-    sx = (int)(SCREEN_W/2 + x * 16.0f / zz);
-    sy = (int)(STATUS_H + (SCREEN_H-STATUS_H)/2 + y * 16.0f / zz);
+    // improved perspective: larger scale and center offset
+    float zz = z + 6.0f;
+    float scale = 28.0f; // larger scale for stronger perspective
+    sx = (int)(SCREEN_W/2 + x * scale / zz);
+    sy = (int)(STATUS_H + (SCREEN_H-STATUS_H)/2 + y * scale / zz);
   };
 
   while (true){
@@ -297,51 +485,74 @@ void runUniverse(){
     else if (mode==3) M5.Display.print("Galaxy 3D");
     else M5.Display.print("Star System 3D");
 
-    // 3D starfield (draw larger points depending on depth)
-    for (int i=0;i<80;i++){
+    // 3D starfield (draw larger points depending on depth) - larger and more dynamic
+    for (int i=0;i<64;i++){
       float x = stars[i].x;
       float y = stars[i].y;
-      float z = stars[i].z + 0.5f * sin(angle*0.2f + i);
+      // subtle bobbing + small forward motion to add depth
+      float z = stars[i].z + 0.6f * sin(angle*0.15f + i);
       int sx, sy;
       project(x, y, z, sx, sy);
       if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
-        float zz = z + 8.0f;
-        int sr = (int)(3.5f / zz); // size inversely proportional to depth
+        float zz = z + 6.0f;
+        // size and brightness scale with proximity
+        int sr = (int)(6.5f / zz);
         if (sr < 1) sr = 1;
-        if (sr > 4) sr = 4;
-        M5.Display.fillCircle(sx, sy, sr, stars[i].c);
+        if (sr > 6) sr = 6;
+        // compute brightness-like color by selecting palette based on depth
+        uint16_t col = stars[i].c;
+        if (zz < 10.0f) {
+          // bright core: draw small glow
+          for (int g = sr+1; g > 0; g--) {
+            uint16_t glowCol = (g==sr+1) ? 0xFFFF : col;
+            M5.Display.drawCircle(sx, sy, g, glowCol);
+          }
+          M5.Display.fillCircle(sx, sy, sr, col);
+        } else {
+          // distant stars: draw single pixel or small circle
+          if (sr <= 2) M5.Display.drawPixel(sx, sy, col);
+          else M5.Display.fillCircle(sx, sy, sr-1, col);
+        }
+      }
+      // move star forward slightly; if it crosses near plane, respawn far away
+      stars[i].z -= 0.12f; 
+      if (stars[i].z < 1.0f) {
+        stars[i].x = (rand()%800 - 400) / 10.0f;
+        stars[i].y = (rand()%600 - 300) / 10.0f;
+        stars[i].z = (rand()%700) / 10.0f + 40.0f;
       }
     }
 
     // 3D bodies
     if (mode == 0){
       // black hole: rotating accretion disk + center
-      for (int i=0;i<60;i++){
-        float a = angle*0.8f + i*0.12f;
-        float r = 4.0f + (i%20)*0.35f; // slightly larger disk
+      for (int i=0;i<80;i++){
+        float a = angle*0.9f + i*0.08f;
+        float r = 6.0f + (i%30)*0.45f; // larger disk and more particles
         float x = cos(a) * r;
-        float y = sin(a) * r * 0.35f;
-        float z = sin(a*1.3f) * 1.0f;
+        float y = sin(a) * r * 0.45f;
+        float z = sin(a*1.2f) * 1.5f;
         int sx, sy;
         project(x, y, z, sx, sy);
         if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
-          float zz = z + 8.0f;
-          int pr = (int)(2.5f / zz);
+          float zz = z + 6.0f;
+          int pr = (int)(3.5f / zz);
           if (pr < 1) pr = 1;
-          if (pr > 3) pr = 3;
-          M5.Display.fillCircle(sx, sy, pr, (i%3==0)?YELLOW:0xFFE0);
+          if (pr > 5) pr = 5;
+          M5.Display.fillCircle(sx, sy, pr, (i%4==0)?YELLOW:0xFFE0);
         }
       }
       int cx, cy;
       project(0,0,0, cx, cy);
-      M5.Display.fillCircle(cx, cy, 9, BLACK);
-      M5.Display.drawCircle(cx, cy, 10, 0x7BEF);
+      // central event horizon with glow - larger
+      for (int g=18; g>8; g--){ M5.Display.drawCircle(cx, cy, g, 0x18E3); }
+      M5.Display.fillCircle(cx, cy, 8, BLACK);
     } else if (mode == 1){
-      // neutron star with 3D beams
+      // neutron star with 3D beams - larger
       int cx, cy;
       project(0,0,0, cx, cy);
-      M5.Display.fillCircle(cx, cy, 8, 0xFFFF);
-      for (int i=0;i<16;i++){
+      M5.Display.fillCircle(cx, cy, 12, 0xFFFF);
+      for (int i=0;i<12;i++){
         float a = angle + i*0.4f;
         float x = cos(a)*3.5f;
         float y = sin(a)*3.5f;
@@ -359,7 +570,7 @@ void runUniverse(){
       }
     } else if (mode == 2){
       // nebula: 3D cloud
-      for (int i=0;i<60;i++){
+      for (int i=0;i<40;i++){
         float a = angle*0.3f + i*0.2f;
         float r = 2.0f + (i%15)*0.3f;
         float x = cos(a)*r;
@@ -378,7 +589,7 @@ void runUniverse(){
       }
     } else if (mode == 3){
       // galaxy: 3D spiral arms
-      for (int i=0;i<90;i++){
+      for (int i=0;i<60;i++){
         float a = i*0.2f + angle;
         float r = i*0.08f;
         float x = cos(a)*r;
@@ -396,12 +607,12 @@ void runUniverse(){
       }
       int cx, cy;
       project(0,0,0, cx, cy);
-      M5.Display.fillCircle(cx, cy, 6, YELLOW);
+      M5.Display.fillCircle(cx, cy, 10, YELLOW); // Larger galaxy center
     } else {
-      // star system: 3D orbits
+      // star system: 3D orbits - larger bodies
       int cx, cy;
       project(0,0,0, cx, cy);
-      M5.Display.fillCircle(cx, cy, 6, YELLOW);
+      M5.Display.fillCircle(cx, cy, 10, YELLOW); // Larger sun
       for (int i=0;i<3;i++){
         float a = angle*(0.5f+i*0.2f);
         float r = 2.0f + i*2.0f;
@@ -412,7 +623,7 @@ void runUniverse(){
         project(x,y,z, sx, sy);
         uint16_t c = (i==0)?0x07E0:(i==1?0xF800:0x001F);
         if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
-          int pr = 2 + i; // make outer planets larger
+          int pr = 4 + i*2; // make planets larger
           M5.Display.fillCircle(sx, sy, pr, c);
         }
       }
@@ -472,7 +683,7 @@ void runIllusion(){
     } else {
       int cx = SCREEN_W/2;
       int cy = y0 + (SCREEN_H - y0)/2;
-      for (int i=0;i<120;i++){
+      for (int i=0;i<80;i++){
         float a = i*0.2f + t;
         float r = i*0.5f;
         int x = cx + (int)(cos(a)*r);
@@ -482,5 +693,108 @@ void runIllusion(){
       t += 0.02f;
     }
     delay(16);
+  }
+}
+
+void runDraw(){
+  // Draw mode: pixel editor - use even smaller resolution to save RAM
+  // Use 80x45 resolution (1/3 resolution) to save memory
+  const int DRAW_W = SCREEN_W / 3;
+  const int DRAW_H = SCREEN_H / 3;
+  static uint8_t canvas[(DRAW_W * DRAW_H + 7) / 8];
+  static bool initialized = false;
+  if (!initialized){
+    memset(canvas, 0, sizeof(canvas));
+    initialized = true;
+  }
+  
+  int px = DRAW_W/2;
+  int py = DRAW_H/2;
+  bool exitDraw = false;
+  
+  auto setPixel = [&](int x, int y, bool on){
+    if (x < 0 || x >= DRAW_W || y < 0 || y >= DRAW_H) return;
+    int idx = y * DRAW_W + x;
+    int byteIdx = idx / 8;
+    int bitIdx = idx % 8;
+    if (on) canvas[byteIdx] |= (1 << bitIdx);
+    else canvas[byteIdx] &= ~(1 << bitIdx);
+  };
+  
+  auto getPixel = [&](int x, int y) -> bool {
+    if (x < 0 || x >= DRAW_W || y < 0 || y >= DRAW_H) return false;
+    int idx = y * DRAW_W + x;
+    int byteIdx = idx / 8;
+    int bitIdx = idx % 8;
+    return (canvas[byteIdx] & (1 << bitIdx)) != 0;
+  };
+  
+  while (!exitDraw){
+    M5.update();
+    
+    // Exit: M5 + Prev pressed together
+    if (M5.BtnA.isPressed() && M5.BtnPWR.isPressed()){
+      exitDraw = true;
+      // Reset canvas
+      memset(canvas, 0, sizeof(canvas));
+      break;
+    }
+    
+    // Place pixel: M5 pressed
+    if (M5.BtnA.wasPressed()){
+      setPixel(px, py, true);
+    }
+    
+    // Move right: Next pressed
+    if (M5.BtnB.wasPressed()){
+      px++;
+      if (px >= DRAW_W) px = DRAW_W - 1;
+    }
+    // Move left: Next held
+    if (M5.BtnB.isPressed() && !M5.BtnB.wasPressed()){
+      static uint32_t lastMoveLeft = 0;
+      if (millis() - lastMoveLeft > 100){
+        px--;
+        if (px < 0) px = 0;
+        lastMoveLeft = millis();
+      }
+    }
+    
+    // Move down: Prev pressed
+    if (M5.BtnPWR.wasPressed() && !M5.BtnA.isPressed()){
+      py++;
+      if (py >= DRAW_H) py = DRAW_H - 1;
+    }
+    // Move up: Prev held
+    if (M5.BtnPWR.isPressed() && !M5.BtnA.isPressed() && !M5.BtnPWR.wasPressed()){
+      static uint32_t lastMoveUp = 0;
+      if (millis() - lastMoveUp > 100){
+        py--;
+        if (py < 0) py = 0;
+        lastMoveUp = millis();
+      }
+    }
+    
+    // Draw canvas - scale up from reduced resolution
+    M5.Display.fillScreen(BLACK);
+    for (int x=0;x<DRAW_W;x++){
+      for (int y=0;y<DRAW_H;y++){
+        if (getPixel(x, y)){
+          // Scale up 3x3 pixels
+          int sx = x * 3;
+          int sy = y * 3;
+          M5.Display.fillRect(sx, sy, 3, 3, WHITE);
+        }
+      }
+    }
+    
+    // Draw cursor - scale up
+    if (px >= 0 && px < DRAW_W && py >= 0 && py < DRAW_H){
+      int sx = px * 3;
+      int sy = py * 3;
+      M5.Display.drawRect(sx-1, sy-1, 5, 5, CYAN);
+    }
+    
+    delay(10);
   }
 }

@@ -36,10 +36,30 @@ void parseIRFile(const String &path){
   cmdCount = 0;
   File f = SPIFFS.open(path, "r");
   if (!f) return;
+  // free any previous metadata
+  for (int i=0;i<MAX_CMDS;i++){ if (cmdMeta[i]) { free(cmdMeta[i]); cmdMeta[i]=nullptr; } }
+  // Support two IR file formats:
+  // - simple KEY=0xNNNN entries (existing behavior)
+  // - parsed blocks with lines like "name: ...", "protocol: ...", "address: ...", "command: ..."
+  String curName="", curProtocol="", curAddress="", curCommand="";
   while(f.available() && cmdCount < MAX_CMDS){
     String line = f.readStringUntil('\n');
     line.trim();
-    if (line.length() == 0) continue;
+    // treat comment-lines as separators too
+    if (line.startsWith("#") || line.length() == 0){
+      // end of a parsed block -> commit if we have data
+      if (curName.length() && curProtocol.length()){
+        String entry = String("PARSED|") + curProtocol + "|" + curAddress + "|" + curCommand;
+        cmdName[cmdCount] = curName; // human-friendly display name
+        // allocate metadata on heap to avoid growing .bss
+        cmdMeta[cmdCount] = strdup(entry.c_str());
+        cmdHex[cmdCount] = 0;
+        cmdCount++;
+      }
+      curName = curProtocol = curAddress = curCommand = "";
+      continue;
+    }
+    // key=value simple form
     if (line.indexOf('=') > 0) {
       int eq = line.indexOf('=');
       String name = line.substring(0, eq);
@@ -49,12 +69,62 @@ void parseIRFile(const String &path){
       cmdName[cmdCount] = name;
       cmdHex[cmdCount] = v;
       cmdCount++;
-    } else if (line.startsWith("RAW:") || line.startsWith("raw:")) {
+      continue;
+    }
+    // RAW: format
+    if (line.startsWith("RAW:") || line.startsWith("raw:")) {
       String raw = line.substring(line.indexOf(':')+1);
       raw.trim();
-      cmdName[cmdCount] = "RAW:" + raw;
+      cmdName[cmdCount] = "RAW:" + raw; // display will show RAW
+      cmdMeta[cmdCount] = nullptr; // no parsed metadata
       cmdHex[cmdCount] = 0;
       cmdCount++;
+      continue;
+    }
+    // parsed block lines (key: value)
+    int colon = line.indexOf(':');
+    if (colon > 0) {
+      String key = line.substring(0, colon);
+      String val = line.substring(colon+1);
+      key.trim(); val.trim();
+      key.toLowerCase();
+      if (key == "name" || key == "title" || key == "label") curName = val;
+      else if (key == "protocol" || key == "type") curProtocol = val;
+      else if (key == "address") curAddress = val;
+      else if (key == "command") {
+        // sometimes 'command' is a header followed by a hex line; if val empty, mark and continue
+        if (val.length() > 0) curCommand = val;
+        else {
+          // lookahead: try to read next non-empty non-comment line as command bytes
+          long pos = f.position();
+          String next = f.readStringUntil('\n');
+          next.trim();
+          if (!next.startsWith("#") && next.length()>0) {
+            curCommand = next;
+          } else {
+            // rewind
+            f.seek(pos);
+          }
+        }
+      }
+      continue;
+    }
+
+    // lines that look like hex byte sequences (e.g. "81 00 00 00")
+    bool looksHex = true;
+    bool hasHexDigit = false;
+    for (int i=0;i<line.length();i++){
+      char c = line[i];
+      if ( (c>='0' && c<='9') || (c>='A' && c<='F') || (c>='a' && c<='f') || c==' ' ){
+        if ((c>='0' && c<='9') || (c>='A' && c<='F') || (c>='a' && c<='f')) hasHexDigit = true;
+        continue;
+      }
+      looksHex = false; break;
+    }
+    if (looksHex && hasHexDigit){
+      // treat as command bytes
+      curCommand = line;
+      continue;
     }
   }
   f.close();
@@ -63,9 +133,16 @@ void parseIRFile(const String &path){
 void sendIRCommand(int idx){
   if (idx < 0 || idx >= cmdCount) return;
   if (cmdHex[idx] != 0) {
-    irsend.sendNEC(cmdHex[idx], 32);
-  } else {
-    String rawLine = cmdName[idx].substring(4);
+    // numeric NEC-style value
+    getIrSender()->sendNEC(cmdHex[idx], 32);
+    return;
+  }
+  // prefer metadata for parsed entries, otherwise fallback to cmdName content
+  String entry;
+  if (cmdMeta[idx]) entry = String(cmdMeta[idx]);
+  else entry = cmdName[idx];
+  if (entry.startsWith("RAW:")){
+    String rawLine = entry.substring(4);
     std::vector<uint16_t> timings;
     int start = 0;
     while (start < (int)rawLine.length()) {
@@ -78,8 +155,35 @@ void sendIRCommand(int idx){
       start = comma + 1;
     }
     if (timings.size() > 0) {
-      irsend.sendRaw(timings.data(), timings.size(), 38);
+      getIrSender()->sendRaw(timings.data(), timings.size(), 38);
     }
+    return;
+  }
+  // PARSED|protocol|address|command
+  if (entry.startsWith("PARSED|")){
+    int p1 = entry.indexOf('|', 7); // after PARSED|
+    int p2 = entry.indexOf('|', p1+1);
+    String proto = entry.substring(7, p1);
+    String addr = entry.substring(p1+1, p2);
+    String cmd = entry.substring(p2+1);
+    proto.trim(); addr.trim(); cmd.trim();
+    // route to specific senders when possible
+    String pu = proto;
+    pu.toUpperCase();
+    if (pu.indexOf("NECEXT") >= 0){ sendNECextCommand(addr, cmd, false); return; }
+    if (pu.indexOf("NEC") >= 0){ sendNECCommand(addr, cmd, false); return; }
+    if (pu.indexOf("RC5") >= 0){ sendRC5Command(addr, cmd, false); return; }
+    if (pu.indexOf("RC6") >= 0){ sendRC6Command(addr, cmd, false); return; }
+    if (pu.indexOf("SAMSUNG") >= 0){ sendSamsungCommand(addr, cmd, false); return; }
+    if (pu.indexOf("PANASONIC") >= 0 || pu.indexOf("KASEIKYO") >= 0){ sendKaseikyoCommand(addr, cmd, false); return; }
+    // fallback: try generic decoded send (concatenate cmd+addr)
+    String value = cmd;
+    value.replace(" ", "");
+    // append address bytes if present
+    String a2 = addr; a2.replace(" ", "");
+    if (a2.length() > 0) value = value + a2;
+    sendDecodedCommand(proto, value, 32, false);
+    return;
   }
 }
 
@@ -248,4 +352,12 @@ void sendRawCommand(uint16_t frequency, String rawData, bool hideDefaultUI){
   if (count > 0) ir->sendRaw(dataBuffer, count, frequency);
   for (int i=0;i<IR_TX_REPEATS;i++) ir->sendRaw(dataBuffer, count, frequency);
   free(dataBuffer);
+}
+
+bool probeIrPin(uint8_t pin){
+  // try creating a temporary IRsend on the requested pin
+  // this mostly ensures construction and begin() don't crash
+  IRsend tmp(pin);
+  tmp.begin();
+  return true;
 }

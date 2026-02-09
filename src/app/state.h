@@ -36,11 +36,13 @@ enum Screen {
   SCR_GAMES_LIST,
   SCR_TEST_LIST,
   SCR_IR_LIST,
+  SCR_IR_FILE_MENU,
   SCR_IR_CMD_LIST,
   SCR_FILES_LIST,
   SCR_FILES_BROWSER,
   SCR_SETTING,
-  SCR_DEVICE_INFO
+  SCR_DEVICE_INFO,
+  SCR_CHEAT
 };
 extern Screen screen;
 
@@ -50,14 +52,14 @@ extern const int MENU_COUNT;
 extern int menuIndex;
 
 // ===== File lists =====
-#define MAX_FILES 12
+#define MAX_FILES 10  // Reduced from 12 to save RAM
 extern String imgFiles[MAX_FILES]; extern int imgCount; extern int imgIndex;
 extern String gifFiles[MAX_FILES]; extern int gifCount; extern int gifIndex;
 extern String irFiles[MAX_FILES];  extern int irCount;  extern int irIndex;
 extern String txtFiles[MAX_FILES]; extern int txtCount;
 
 // ===== WiFi =====
-#define MAX_WIFI 8
+#define MAX_WIFI 6  // Reduced from 8 to save RAM
 extern String wifiSSID[MAX_WIFI];
 extern int wifiRSSI[MAX_WIFI];
 extern bool wifiSecured[MAX_WIFI];
@@ -65,12 +67,14 @@ extern int wifiCount;
 extern int wifiIndex;
 
 // ===== IR commands =====
-#define MAX_CMDS 32
+#define MAX_CMDS 20  // Reduced from 24 to save RAM
 extern String cmdName[MAX_CMDS];
 extern uint32_t cmdHex[MAX_CMDS];
+extern char* cmdMeta[MAX_CMDS];
 extern int cmdCount;
 extern int cmdIndex;
 extern int cmdScroll;
+extern int irFileMenuIndex;
 extern IRsend irsend;
 
 // ===== GIF/PNG =====
@@ -86,6 +90,7 @@ extern bool sdReady;
 extern String browserFiles[MAX_FILES];
 extern int browserCount;
 extern int browserIndex;
+extern int fileSelectMode; // 0=none,1=backupSaveSd,2=backupLoadSd
 
 // ===== Test =====
 extern const char* TEST_ITEMS[];

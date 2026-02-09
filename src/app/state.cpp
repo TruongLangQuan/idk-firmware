@@ -3,8 +3,8 @@
 // ===== Globals =====
 Screen screen = SCR_MENU;
 
-const char* MENU_ITEMS[] = {"Wifi","Clock","Img","Gif","Txt","Games","Test","IR","Files","Setting"};
-const int MENU_COUNT = 10;
+const char* MENU_ITEMS[] = {"Wifi","Clock","Img","Gif","Txt","Games","Test","IR","Files","Setting","Cheat"};
+const int MENU_COUNT = 11;
 int menuIndex = 0;
 
 String imgFiles[MAX_FILES]; int imgCount = 0; int imgIndex = 0;
@@ -20,9 +20,11 @@ int wifiIndex = 0;
 
 String cmdName[MAX_CMDS];
 uint32_t cmdHex[MAX_CMDS];
+char* cmdMeta[MAX_CMDS] = { nullptr };
 int cmdCount = 0;
 int cmdIndex = 0;
 int cmdScroll = 0;
+int irFileMenuIndex = 0;
 IRsend irsend(IR_PIN);
 
 AnimatedGIF gif;
@@ -36,8 +38,8 @@ String browserFiles[MAX_FILES];
 int browserCount = 0;
 int browserIndex = 0;
 
-const char* TEST_ITEMS[] = {"Text Display","Function Plot","3D Cube","3D Universe","Illusion"};
-const int TEST_COUNT = 5;
+const char* TEST_ITEMS[] = {"Text Display","Function Plot","3D Cube","3D Universe","Illusion","Draw"};
+const int TEST_COUNT = 6;
 int testIndex = 0;
 
 const char* GAME_ITEMS[] = {"Tetris","Flappy Bird","Slot Machine","Dino"};
@@ -53,6 +55,7 @@ uint8_t BRIGHT_NORMAL = 255;
 uint8_t BRIGHT_DIM = 40;
 
 int setIndex = 0;
-const char* SET_ITEMS[] = {"Dim Time","WebUI","WebUI Enable","Restart","Power Off","Device Info"};
-const int SET_COUNT = 6;
+const char* SET_ITEMS[] = {"Dim Time","WebUI","WebUI Enable","Restart","Power Off","Device Info","IR Pin","SD CS Pin","Known WiFi","Backup","Restore","Backup SD","Restore SD"};
+const int SET_COUNT = 13;
 bool webuiEnabled = true;
+int fileSelectMode = 0;

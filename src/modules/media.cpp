@@ -1,5 +1,6 @@
 #include "modules/media.h"
 #include "core/ui.h"
+#include "core/log.h"
 
 // --- SPIFFS scanning ---
 static String baseNameOf(const String &path){
@@ -41,7 +42,9 @@ static void scanDir(fs::FS &fs, const char* path){
     String n = String(f.name());
     String name = n.startsWith("/") ? n : (String(path) + "/" + n);
     name = normPath(name);
-    if (name.endsWith(".png")) addUnique(imgFiles, imgCount, name);
+    String lname = name;
+    lname.toLowerCase();
+    if (lname.endsWith(".png") || lname.endsWith(".jpg") || lname.endsWith(".jpeg")) addUnique(imgFiles, imgCount, name);
     else if (name.endsWith(".gif")) addUnique(gifFiles, gifCount, name);
     else if (name.endsWith(".ir"))  addUnique(irFiles, irCount, name);
     else if (name.endsWith(".txt")) addUnique(txtFiles, txtCount, name);
@@ -73,6 +76,7 @@ void scanSPIFFS(){
       }
       if (n.endsWith(".png")) addUnique(imgFiles, imgCount, n);
       else if (n.endsWith(".gif")) addUnique(gifFiles, gifCount, n);
+      else if (n.endsWith(".jpg") || n.endsWith(".jpeg")) addUnique(imgFiles, imgCount, n);
       else if (n.endsWith(".ir")) addUnique(irFiles, irCount, n);
       else if (n.endsWith(".txt")) addUnique(txtFiles, txtCount, n);
       f = root.openNextFile();
@@ -82,9 +86,9 @@ void scanSPIFFS(){
 
 // ===== PNG =====
 static void *PngOpen(const char *filename, int32_t *size){
-  if (!SPIFFS.exists(filename)) return nullptr;
+  if (!SPIFFS.exists(filename)) { LOGE("PNG not found: %s", filename); return nullptr; }
   pngFile = SPIFFS.open(filename, "r");
-  if (!pngFile) return nullptr;
+  if (!pngFile) { LOGE("PNG open failed: %s", filename); return nullptr; }
   *size = pngFile.size();
   return &pngFile;
 }
@@ -115,11 +119,23 @@ void showPNG(const char* path){
   png.close();
 }
 
+void showJPG(const char* path){
+  M5.Display.fillScreen(BLACK);
+  int y = STATUS_H;
+  int h = SCREEN_H - STATUS_H;
+  bool ok = M5.Display.drawJpgFile(path, 0, y, SCREEN_W, h);
+  if (!ok){
+    M5.Display.setTextColor(RED);
+    M5.Display.setCursor(6, STATUS_H + 20);
+    M5.Display.print("JPG open failed");
+  }
+}
+
 // ===== GIF =====
 static void *GifOpenFile(const char *szFilename, int32_t *pFileSize){
-  if (!SPIFFS.exists(szFilename)) return NULL;
+  if (!SPIFFS.exists(szFilename)) { LOGE("GIF not found: %s", szFilename); return NULL; }
   gifFile = SPIFFS.open(szFilename, "r");
-  if (!gifFile) return NULL;
+  if (!gifFile) { LOGE("GIF open failed: %s", szFilename); return NULL; }
   *pFileSize = gifFile.size();
   gifFile.seek(0);
   return &gifFile;
@@ -145,7 +161,7 @@ static void GifDraw(GIFDRAW *pDraw){
   static uint16_t *lineBuf = nullptr;
   if (!lineBuf){
     lineBuf = (uint16_t*)malloc(SCREEN_W * sizeof(uint16_t));
-    if (!lineBuf) return;
+    if (!lineBuf) { LOGE("GIF lineBuf alloc failed"); return; }
   }
   int x = pDraw->iX;
   int y = pDraw->iY + pDraw->y;
@@ -188,7 +204,7 @@ void playGIFLoop(const char* path){
   gif.begin(GIF_PALETTE_RGB565_LE);
   while(true){
     int r = gif.open(path, GifOpenFile, GifCloseFile, GifReadFile, GifSeekFile, GifDraw);
-    if(!r){
+    if(!r){ LOGE("gif.open returned error for %s (r=%d)", path, r);
       M5.Display.fillScreen(BLACK);
       M5.Display.setTextColor(RED);
       M5.Display.setCursor(6, 40);

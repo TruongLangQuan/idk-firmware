@@ -3,4 +3,4 @@
 
 void setupTime();
 bool timeValid();
-void drawClock();
+void drawClock(bool showStatus = true);

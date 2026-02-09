@@ -3,6 +3,10 @@
 #include <WebServer.h>
 #include <Preferences.h>
 #include <vector>
+#include "core/log.h"
+#include "modules/config.h"
+#include "modules/backup.h"
+#include "modules/wifi.h"
 
 static WebServer server(80);
 static bool webuiRunning = false;
@@ -21,7 +25,7 @@ static String fmtBytes(size_t b){
 
 static fs::FS* getFs(const String& fs){
   if (fs == "sd"){
-    if (!sdReady) sdReady = SD.begin();
+    if (!sdReady) sdReady = SD.begin(configGetSdCsPin());
     if (!sdReady) return nullptr;
     return &SD;
   }
@@ -162,6 +166,9 @@ static const char* WEBUI_HTML = R"HTML(
           <button class="btn" id="btnTouch">New File</button>
           <button class="btn danger" id="btnDelete">Delete</button>
           <button class="btn" id="btnRename">Rename</button>
+          <button class="btn" id="btnBackup">Backup</button>
+          <button class="btn" id="btnRestore">Restore</button>
+                <button class="btn" id="btnKnown">Known WiFi</button>
           <button class="btn" id="btnWebui">WebUI: On</button>
         </div>
         <div class="muted" id="memInfo">--</div>
@@ -280,6 +287,67 @@ static const char* WEBUI_HTML = R"HTML(
     qs('#btnWebui').textContent = `WebUI: ${data.enabled ? 'On' : 'Off'}`;
   };
 
+  qs('#btnBackup').onclick = async ()=>{
+    const res = await fetch('/api/backup');
+    if (!res.ok) return alert('Backup failed');
+    const txt = await res.text();
+    const blob = new Blob([txt], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'idk-backup.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  qs('#btnRestore').onclick = async ()=>{
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.onchange = async ()=>{
+      const f = input.files[0];
+      if (!f) return;
+      const txt = await f.text();
+      const res = await fetch('/api/backup/restore', {method:'POST', headers: {'Content-Type':'application/json'}, body: txt});
+      const j = await res.json();
+      if (j.ok) alert('Restore applied — reboot recommended'); else alert('Restore failed');
+    };
+    input.click();
+  };
+
+  qs('#btnKnown').onclick = async ()=>{
+    const data = await api('/api/known');
+    // render list in fileList area
+    fileList.innerHTML = '';
+    const title = document.createElement('div');
+    title.className = 'row';
+    title.innerHTML = '<strong>Known Networks</strong>';
+    fileList.appendChild(title);
+    data.forEach((it, idx)=>{
+      const row = document.createElement('div');
+      row.className = 'row';
+      const left = document.createElement('span');
+      left.textContent = it.ssid + (it.star ? ' *' : '');
+      const right = document.createElement('span');
+      right.className = 'muted';
+      const btn = document.createElement('button');
+      btn.textContent = 'Forget';
+      btn.className = 'btn danger';
+      btn.onclick = async ()=>{
+        if (!confirm('Forget '+it.ssid+'?')) return;
+        const res = await fetch('/api/known/forget', {method:'POST', body: new URLSearchParams({idx: idx})});
+        const j = await res.json();
+        if (j.ok) { alert('Forgot'); qs('#btnKnown').click(); } else alert('Failed');
+      };
+      right.appendChild(btn);
+      row.appendChild(left);
+      row.appendChild(right);
+      fileList.appendChild(row);
+    });
+  };
+
   loadList();
 </script>
 </body>
@@ -295,6 +363,7 @@ static void handleList(){
   String path = normPath(server.arg("path"));
   fs::FS* fs = getFs(fsName);
   if (!fs){
+    LOGW("webui list: FS %s not ready", fsName.c_str());
     server.send(500, "application/json", "{\"items\":[],\"info\":\"FS not ready\"}");
     return;
   }
@@ -331,7 +400,7 @@ static void handleList(){
 static void handleInfo(){
   size_t fsTotal = SPIFFS.totalBytes();
   size_t fsUsed  = SPIFFS.usedBytes();
-  bool sdOk = sdReady || SD.begin();
+  bool sdOk = sdReady || SD.begin(configGetSdCsPin());
   size_t sdTotal = sdOk ? SD.totalBytes() : 0;
   size_t sdUsed  = sdOk ? SD.usedBytes() : 0;
   String out = "{";
@@ -394,7 +463,7 @@ static void handleDelete(){
 static void handleUpload(){
   String fsName = server.arg("fs");
   fs::FS* fs = getFs(fsName);
-  if (!fs) return;
+  if (!fs) { LOGE("upload: FS %s not ready", fsName.c_str()); return; }
   String base = normPath(server.arg("path"));
   HTTPUpload& upload = server.upload();
   static File uploadFile;
@@ -409,11 +478,61 @@ static void handleUpload(){
       mkdirs(*fs, dir);
     }
     uploadFile = fs->open(full, "w");
+    if (!uploadFile) LOGE("upload: open failed %s", full.c_str());
   } else if (upload.status == UPLOAD_FILE_WRITE){
     if (uploadFile) uploadFile.write(upload.buf, upload.currentSize);
+    else LOGW("upload: write without open file");
   } else if (upload.status == UPLOAD_FILE_END){
     if (uploadFile) uploadFile.close();
   }
+}
+
+static void handleBackup(){
+  String j = backupCreateJson();
+  server.send(200, "application/json", j);
+}
+
+static void handleBackupRestore(){
+  // expects application/json body
+  String body = server.arg("plain");
+  bool ok = backupRestoreFromJson(body);
+  server.send(200, "application/json", String("{\"ok\":") + (ok?"true":"false") + "}");
+}
+
+static void handleKnownList(){
+  Preferences p;
+  p.begin("wifi", true);
+  int known = p.getInt("known", 0);
+  String out = "[";
+  for (int i=0;i<known;i++){
+    if (i) out += ",";
+    String s = p.getString((String("s") + String(i)).c_str(), "");
+    bool star = s.endsWith("*");
+    String ss = s;
+    ss.replace("\"", "\\\"");
+    out += "{\"ssid\":\"" + ss + "\",\"star\":" + String(star?"true":"false") + "}";
+  }
+  p.end();
+  out += "]";
+  server.send(200, "application/json", out);
+}
+
+static void handleKnownForget(){
+  String idxs = server.arg("idx");
+  int idx = -1;
+  if (idxs.length()) idx = atoi(idxs.c_str());
+  if (idx < 0){
+    // try form body
+    String body = server.arg("plain");
+    if (body.length()){
+      // simple parse of idx
+      int p = body.indexOf('=');
+      if (p>0) idx = atoi(body.substring(p+1).c_str());
+    }
+  }
+  if (idx < 0){ server.send(400, "application/json", "{\"ok\":false}"); return; }
+  wifiForgetKnown(idx);
+  server.send(200, "application/json", "{\"ok\":true}");
 }
 
 static void handleWebuiToggle(){
@@ -443,9 +562,14 @@ void webuiStartSTA(){
   server.on("/api/delete", HTTP_POST, handleDelete);
   server.on("/api/upload", HTTP_POST, [](){ server.send(200, "application/json", "{\"ok\":true}"); }, handleUpload);
   server.on("/api/webui", HTTP_POST, handleWebuiToggle);
+  server.on("/api/backup", HTTP_GET, handleBackup);
+  server.on("/api/backup/restore", HTTP_POST, handleBackupRestore);
+  server.on("/api/known", HTTP_GET, handleKnownList);
+  server.on("/api/known/forget", HTTP_POST, handleKnownForget);
   server.onNotFound(handleRoot);
   server.begin();
   webuiRunning = true;
+  LOGI("WebUI STA started at %s", webuiUrl.c_str());
 }
 
 void webuiStartAP(){
@@ -467,9 +591,14 @@ void webuiStartAP(){
   server.on("/api/delete", HTTP_POST, handleDelete);
   server.on("/api/upload", HTTP_POST, [](){ server.send(200, "application/json", "{\"ok\":true}"); }, handleUpload);
   server.on("/api/webui", HTTP_POST, handleWebuiToggle);
+  server.on("/api/backup", HTTP_GET, handleBackup);
+  server.on("/api/backup/restore", HTTP_POST, handleBackupRestore);
+  server.on("/api/known", HTTP_GET, handleKnownList);
+  server.on("/api/known/forget", HTTP_POST, handleKnownForget);
   server.onNotFound(handleRoot);
   server.begin();
   webuiRunning = true;
+  LOGI("WebUI AP started at %s", webuiUrl.c_str());
 }
 
 void webuiStop(){

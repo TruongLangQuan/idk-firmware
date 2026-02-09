@@ -4,16 +4,19 @@
 #include "app/state.h"
 #include "core/ui.h"
 #include "core/input.h"
+#include "core/log.h"
 #include "system/power.h"
 #include "modules/wifi.h"
 #include "modules/clock.h"
 #include "modules/media.h"
 #include "modules/ir.h"
 #include "modules/files.h"
+#include "modules/config.h"
 #include "modules/games.h"
 #include "modules/test.h"
 #include "modules/webui.h"
 #include "modules/wifi.h"
+#include "modules/cheat.h"
 
 #include "screens/menu.h"
 #include "screens/wifi.h"
@@ -28,13 +31,15 @@
 #include "screens/setting.h"
 
 void setup(){
-  Serial.begin(115200);
+  // initialize serial logging for pio device monitor
+  dbg_log_init();
   disableCore0WDT();
   disableLoopWDT();
   auto cfg = M5.config();
   M5.begin(cfg);
   M5.Power.begin();
-  irsend.begin();
+  // load runtime configuration (IR pin, SD CS, etc.)
+  configInit();
 
   M5.Display.setRotation(3); // landscape-left (flipped if needed)
   M5.Display.setTextFont(0);
@@ -100,6 +105,9 @@ void loop(){
     case SCR_IR_LIST:
       screenIrListUpdate();
       break;
+    case SCR_IR_FILE_MENU:
+      screenIrFileMenuUpdate();
+      break;
     case SCR_IR_CMD_LIST:
       screenIrCmdUpdate();
       break;
@@ -111,6 +119,11 @@ void loop(){
       break;
     case SCR_SETTING:
       screenSettingUpdate();
+      break;
+    case SCR_CHEAT:
+      runCheat();
+      screen = SCR_MENU;
+      drawMenu();
       break;
     default:
       break;

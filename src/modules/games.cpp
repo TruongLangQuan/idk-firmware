@@ -49,6 +49,7 @@ void runTetris(){
   for (int y=0;y<H;y++) for(int x=0;x<W;x++) grid[y][x] = 0;
 
   int cur = random(0,7);
+  int next = random(0,7); // Store next piece separately
   int sx = 3, sy = 0;
   int shape[4][4];
   memcpy(shape, TETS[cur].shape, sizeof(shape));
@@ -121,7 +122,8 @@ void runTetris(){
   };
 
   auto spawn = [&](){
-    cur = random(0,7);
+    cur = next; // Use the stored next piece
+    next = random(0,7); // Generate new next piece
     memcpy(shape, TETS[cur].shape, sizeof(shape));
     sx = 3; sy = 0;
   };
@@ -187,14 +189,25 @@ void runTetris(){
     int panelX = ox + boardW + 6;
     M5.Display.setTextColor(WHITE);
     M5.Display.setCursor(panelX, statusH + 6);
-    M5.Display.printf("S:%d", score);
+    // Fix score overflow by limiting display width
+    char scoreStr[16];
+    snprintf(scoreStr, sizeof(scoreStr), "S:%d", score);
+    if (panelX + strlen(scoreStr) * 6 > dispW) {
+      // Truncate score if too long
+      snprintf(scoreStr, sizeof(scoreStr), "S:%dK", score / 1000);
+    }
+    M5.Display.print(scoreStr);
     M5.Display.setCursor(panelX, statusH + 18);
     M5.Display.printf("L:%d", level);
     M5.Display.setCursor(panelX, statusH + 30);
-    M5.Display.printf("H:%d", high);
+    char highStr[16];
+    snprintf(highStr, sizeof(highStr), "H:%d", high);
+    if (panelX + strlen(highStr) * 6 > dispW) {
+      snprintf(highStr, sizeof(highStr), "H:%dK", high / 1000);
+    }
+    M5.Display.print(highStr);
 
-    // next piece preview
-    int next = (cur + 1) % 7;
+    // next piece preview - use stored next variable
     int px0 = panelX;
     int py0 = statusH + 46;
     M5.Display.setTextColor(COLOR_DIM);
@@ -284,9 +297,23 @@ void runFlappy(){
     M5.Display.setCursor(150, STATUS_H + 28);
     M5.Display.printf("H:%d", high);
 
-    M5.Display.fillCircle(20, (int)birdY, 3, YELLOW);
-    M5.Display.fillRect(pipeX, STATUS_H, 10, gapY-18-STATUS_H, GREEN);
-    M5.Display.fillRect(pipeX, gapY+18, 10, SCREEN_H-(gapY+18), GREEN);
+    // Improved bird graphics - larger with wing animation
+    int birdSize = 5;
+    M5.Display.fillCircle(20, (int)birdY, birdSize, YELLOW);
+    M5.Display.fillCircle(18, (int)birdY-1, 2, WHITE); // eye
+    // Wing
+    int wingOffset = (int)(sin(millis()*0.1f) * 2);
+    M5.Display.fillTriangle(22, (int)birdY, 25, (int)birdY-wingOffset, 25, (int)birdY+wingOffset, 0xFFE0);
+    
+    // Improved pipe graphics with gradient
+    M5.Display.fillRect(pipeX, STATUS_H, 12, gapY-18-STATUS_H, GREEN);
+    M5.Display.fillRect(pipeX, gapY+18, 12, SCREEN_H-(gapY+18), GREEN);
+    // Pipe borders
+    M5.Display.drawRect(pipeX, STATUS_H, 12, gapY-18-STATUS_H, 0x07E0);
+    M5.Display.drawRect(pipeX, gapY+18, 12, SCREEN_H-(gapY+18), 0x07E0);
+    // Pipe caps
+    M5.Display.fillRect(pipeX-2, gapY-20, 16, 4, 0x07E0);
+    M5.Display.fillRect(pipeX-2, gapY+16, 16, 4, 0x07E0);
     delay(16);
   }
 
@@ -389,9 +416,32 @@ void runDino(){
     M5.Display.setCursor(6, STATUS_H + 4);
     M5.Display.printf("S:%d  L:%d  H:%d", score, level, high);
 
-    M5.Display.drawFastHLine(0, SCREEN_H-10, SCREEN_W, WHITE);
-    M5.Display.fillRect(12, (int)dinoY, 10, 10, WHITE);
-    M5.Display.fillRect(cactusX, SCREEN_H-20, 6, 10, GREEN);
+    // Improved ground graphics
+    M5.Display.fillRect(0, SCREEN_H-12, SCREEN_W, 12, 0x7BEF); // Ground color
+    M5.Display.drawFastHLine(0, SCREEN_H-12, SCREEN_W, WHITE);
+    
+    // Improved dino graphics - larger and more detailed
+    int dinoW = 14;
+    int dinoH = 14;
+    M5.Display.fillRect(12, (int)dinoY-dinoH, dinoW, dinoH, WHITE);
+    // Dino head
+    M5.Display.fillRect(12, (int)dinoY-dinoH-4, 8, 4, WHITE);
+    // Dino eye
+    M5.Display.fillRect(16, (int)dinoY-dinoH-2, 2, 2, BLACK);
+    // Dino leg animation
+    int legOffset = (int)(sin(millis()*0.2f) * 2);
+    M5.Display.fillRect(14, (int)dinoY, 3, 4, WHITE);
+    M5.Display.fillRect(20, (int)dinoY+legOffset, 3, 4, WHITE);
+    
+    // Improved cactus graphics - larger with details
+    int cactusW = 10;
+    int cactusH = 15;
+    M5.Display.fillRect(cactusX, SCREEN_H-20-cactusH, cactusW, cactusH, GREEN);
+    // Cactus branches
+    M5.Display.fillRect(cactusX-3, SCREEN_H-20-cactusH+5, 4, 6, GREEN);
+    M5.Display.fillRect(cactusX+cactusW-1, SCREEN_H-20-cactusH+8, 4, 6, GREEN);
+    // Cactus details
+    M5.Display.drawRect(cactusX, SCREEN_H-20-cactusH, cactusW, cactusH, 0x07E0);
     delay(16);
   }
 

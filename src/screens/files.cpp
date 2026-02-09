@@ -1,9 +1,12 @@
 #include "screens/files.h"
 #include "core/ui.h"
+#include "core/input.h"
 #include "modules/files.h"
 #include "modules/media.h"
 #include "modules/webui.h"
 #include "modules/txt.h"
+#include "modules/config.h"
+#include "modules/backup.h"
 
 void screenFilesListUpdate(){
   if (M5.BtnB.wasPressed()) { filesSource = (FileSource)((filesSource + 1) % 3); drawFilesList(); }
@@ -18,7 +21,7 @@ void screenFilesListUpdate(){
       drawFilesList();
     } else {
       if (filesSource == FS_SD && !sdReady){
-        sdReady = SD.begin();
+        sdReady = SD.begin(configGetSdCsPin());
       }
       if (filesSource == FS_SD && !sdReady){
         M5.Display.fillScreen(BLACK);
@@ -75,10 +78,43 @@ void screenFilesBrowserUpdate(){
   }
   if (M5.BtnA.wasPressed() && browserCount>0){
     String name = browserFiles[browserIndex];
+    if (fileSelectMode != 0){
+      // selection mode: if directory, ask for filename; otherwise use path
+      fs::FS *fs = nullptr;
+      if (filesSource == FS_SD && sdReady) fs = &SD;
+      else if (filesSource == FS_LITTLEFS) fs = &SPIFFS;
+      if (!fs){ fileSelectMode = 0; screen = SCR_SETTING; drawSetting(); return; }
+      File f = fs->open(name);
+      String target = name;
+      if (f && f.isDirectory()){
+        f.close();
+        String fname = "idk-backup.json";
+        if (!textInput("Filename", fname, 64, false)){
+          fileSelectMode = 0; screen = SCR_SETTING; drawSetting(); return;
+        }
+        if (!fname.startsWith("/")) target = String(name) + "/" + fname; else target = fname;
+      } else if (f){ f.close(); }
+      bool ok = false;
+      if (fileSelectMode == 1){
+        ok = backupSaveToSd(target);
+      } else if (fileSelectMode == 2){
+        ok = backupLoadFromSd(target);
+      }
+      fileSelectMode = 0;
+      M5.Display.fillScreen(BLACK); drawStatus(); M5.Display.setCursor(6, STATUS_H + 20); M5.Display.setTextColor(ok?GREEN:RED);
+      M5.Display.print(ok?"Operation OK":"Operation Failed");
+      M5.Display.setTextColor(COLOR_DIM); M5.Display.setCursor(6, SCREEN_H-10); M5.Display.print("Prev=Back");
+      while (true){ M5.update(); if (M5.BtnPWR.wasPressed()) break; delay(10);} 
+      screen = SCR_SETTING; drawSetting();
+      return;
+    }
     if (filesSource == FS_LITTLEFS){
-      if (name.endsWith(".png")) showPNG(name.c_str());
-      else if (name.endsWith(".gif")) playGIFLoop(name.c_str());
-      else if (name.endsWith(".txt")) showTXT(SPIFFS, name.c_str());
+    String lname = name;
+    lname.toLowerCase();
+    if (lname.endsWith(".png")) showPNG(name.c_str());
+    else if (lname.endsWith(".gif")) playGIFLoop(name.c_str());
+    else if (lname.endsWith(".jpg") || lname.endsWith(".jpeg")) showJPG(name.c_str());
+    else if (lname.endsWith(".txt")) showTXT(SPIFFS, name.c_str());
       else {
         M5.Display.fillScreen(BLACK);
         drawStatus();
@@ -87,7 +123,28 @@ void screenFilesBrowserUpdate(){
         M5.Display.print(name);
       }
     } else if (filesSource == FS_SD && sdReady){
-      if (name.endsWith(".txt")) showTXT(SD, name.c_str());
+      String lname = name;
+      lname.toLowerCase();
+      if (lname.endsWith(".txt")) showTXT(SD, name.c_str());
+      else if (lname.endsWith(".jpg") || lname.endsWith(".jpeg")) {
+        // draw from SD explicitly by opening the file and using drawJpg(file)
+        M5.Display.fillScreen(BLACK);
+        drawStatus();
+        int y = STATUS_H; int h = SCREEN_H - STATUS_H;
+        File f = SD.open(name);
+        if (f) {
+          if (!M5.Display.drawJpg(&f, 0, y, SCREEN_W, h)){
+            M5.Display.setTextColor(RED);
+            M5.Display.setCursor(6, STATUS_H + 20);
+            M5.Display.print("JPG open failed");
+          }
+          f.close();
+        } else {
+          M5.Display.setTextColor(RED);
+          M5.Display.setCursor(6, STATUS_H + 20);
+          M5.Display.print("JPG open failed");
+        }
+      }
       else {
         M5.Display.fillScreen(BLACK);
         drawStatus();

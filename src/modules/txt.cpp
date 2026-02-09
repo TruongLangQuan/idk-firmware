@@ -1,6 +1,8 @@
 #include "modules/txt.h"
 #include "core/ui.h"
+#include "core/log.h"
 #include <vector>
+#include <new>
 #include <lgfx/v1/misc/DataWrapper.hpp>
 
 struct SPIFFSFontWrapper : public lgfx::v1::DataWrapper {
@@ -19,10 +21,14 @@ struct SPIFFSFontWrapper : public lgfx::v1::DataWrapper {
 static void loadLines(fs::FS &fs, const char* path, std::vector<String> &lines){
   lines.clear();
   File f = fs.open(path, "r");
-  if (!f) return;
+  if (!f) { LOGE("TXT open failed: %s", path); return; }
   while (f.available() && lines.size() < 200){
     String line = f.readStringUntil('\n');
     line.replace("\r", "");
+    if (ESP.getFreeHeap() < 16000) {
+      LOGE("Low heap while loading txt, stop reading");
+      break;
+    }
     lines.push_back(line);
   }
   f.close();
@@ -37,6 +43,11 @@ static int utf8CharLen(uint8_t c){
 }
 
 static void wrapLineMono(const String &line, int maxChars, std::vector<String> &out){
+  // Avoid heavy processing if heap is already low
+  if (ESP.getFreeHeap() < 30000) {
+    LOGE("Low heap before wrapLineMono, skip");
+    return;
+  }
   if (line.length() == 0){
     out.push_back("");
     return;
@@ -44,36 +55,84 @@ static void wrapLineMono(const String &line, int maxChars, std::vector<String> &
 
   int i = 0;
   String current = "";
+  current.reserve(maxChars * 3);
   int count = 0;
   while (i < (int)line.length()){
     int clen = utf8CharLen((uint8_t)line[i]);
-    String ch = line.substring(i, i + clen);
+    char chbuf[5] = {0};
+    for (int k=0;k<clen && (i+k) < (int)line.length(); k++) chbuf[k] = line[i+k];
     if (count >= maxChars && current.length()){
       current.trim();
-      out.push_back(current);
+      if (ESP.getFreeHeap() < 16000) { LOGE("Low heap during wrapLineMono, stop wrapping"); return; }
+      try {
+        out.push_back(current);
+      } catch (const std::bad_alloc &e) {
+        LOGE("bad_alloc in wrapLineMono: %s", e.what());
+        return;
+      }
       current = "";
       count = 0;
     }
-    current += ch;
+    current += chbuf;
     count++;
     i += clen;
   }
 
   if (current.length()){
     current.trim();
-    out.push_back(current);
+    if (ESP.getFreeHeap() < 16000) { LOGE("Low heap during wrapLineMono final push, skip"); return; }
+    try {
+      out.push_back(current);
+    } catch (const std::bad_alloc &e) {
+      LOGE("bad_alloc in wrapLineMono final push: %s", e.what());
+      return;
+    }
   }
 }
 
+// Helper: read the file and return a page of wrapped lines starting at `top`
+static bool getTxtPage(fs::FS &fs, const char* path, int top, int maxLines, int maxChars, std::vector<String> &out){
+  out.clear();
+  out.reserve(maxLines + 2);
+  File f = fs.open(path, "r");
+  if (!f) { LOGE("TXT open failed: %s", path); return false; }
+
+  int wrappedIndex = 0;
+  while (f.available()){
+    String line = f.readStringUntil('\n');
+    line.replace("\r", "");
+    // wrap into temporary small vector to avoid reallocating the page buffer
+    std::vector<String> wrapped;
+    int approx = (line.length() / maxChars) + 1;
+    if (approx < 2) approx = 2;
+    if ((size_t)approx > 1000) approx = 1000;
+    wrapped.reserve(approx);
+    wrapLineMono(line, maxChars, wrapped);
+
+    for (size_t i=0;i<wrapped.size();i++){
+      if (wrappedIndex >= top && (int)out.size() < maxLines) out.push_back(wrapped[i]);
+      wrappedIndex++;
+      if ((int)out.size() >= maxLines) break;
+    }
+    if ((int)out.size() >= maxLines) break;
+    // safety: if wrappedIndex grows huge, stop
+    if (wrappedIndex > 20000) break;
+  }
+  f.close();
+  return true;
+}
+
 void showTXT(fs::FS &fs, const char* path){
-  std::vector<String> rawLines;
-  loadLines(fs, path, rawLines);
   int top = 0;
   bool viFontLoaded = false;
   static SPIFFSFontWrapper fontWrap;
   if (SPIFFS.exists("/fonts/vi12.vlw")){
-    fontWrap.open("/fonts/vi12.vlw");
-    viFontLoaded = M5.Display.loadFont(&fontWrap);
+    if (!fontWrap.open("/fonts/vi12.vlw")){
+      LOGW("Failed open vi font file");
+    } else {
+      viFontLoaded = M5.Display.loadFont(&fontWrap);
+      if (!viFontLoaded) LOGW("Failed load vi font into display");
+    }
   }
 
   int contentY = STATUS_H + 14;
@@ -87,14 +146,10 @@ void showTXT(fs::FS &fs, const char* path){
   int maxLines = (SCREEN_H - 12 - contentY) / lineH;
   if (maxLines < 1) maxLines = 1;
 
-  std::vector<String> lines;
-  lines.reserve(rawLines.size() * 2);
-  for (size_t i=0;i<rawLines.size();i++){
-    wrapLineMono(rawLines[i], maxChars, lines);
-    if (lines.size() > 600) break; // avoid heavy render on large files
-  }
+  std::vector<String> page;
+  getTxtPage(fs, path, top, maxLines, maxChars, page);
 
-  auto draw = [&](){
+  auto drawPage = [&](const std::vector<String> &lines){
     if (!viFontLoaded) M5.Display.setTextFont(0);
     M5.Display.setTextWrap(false, false);
     M5.Display.fillScreen(COLOR_BG);
@@ -105,15 +160,13 @@ void showTXT(fs::FS &fs, const char* path){
     if (name.startsWith("/")) name = name.substring(1);
     M5.Display.print(name);
 
-    // clear full content area to avoid overdraw
     M5.Display.fillRect(0, contentY, SCREEN_W, SCREEN_H - contentY, COLOR_BG);
     int y = contentY + 2;
     M5.Display.setTextColor(WHITE);
     for (int i=0;i<maxLines;i++){
-      int idx = top + i;
-      if (idx >= (int)lines.size()) break;
+      if (i >= (int)lines.size()) break;
       M5.Display.setCursor(6, y + i*lineH);
-      M5.Display.print(lines[idx]);
+      M5.Display.print(lines[i]);
     }
     M5.Display.setTextColor(COLOR_DIM);
     M5.Display.setCursor(6, SCREEN_H-10);
@@ -121,18 +174,22 @@ void showTXT(fs::FS &fs, const char* path){
     if (!viFontLoaded) M5.Display.setTextFont(0);
   };
 
-  draw();
+  drawPage(page);
   while (true){
     M5.update();
     if (M5.BtnPWR.wasPressed()){
-      if (top + maxLines < (int)lines.size()) { top++; draw(); }
+      top++;
+      std::vector<String> next;
+      getTxtPage(fs, path, top, maxLines, maxChars, next);
+      if (next.size() > 0){ page = next; drawPage(page); }
+      else top--; // no more lines
     }
     if (M5.BtnB.wasPressed()){
-      if (top + maxLines < (int)lines.size()) {
-        top += maxLines;
-        if (top >= (int)lines.size()) top = (int)lines.size() - 1;
-        draw();
-      }
+      top += maxLines;
+      std::vector<String> next;
+      getTxtPage(fs, path, top, maxLines, maxChars, next);
+      if (next.size() > 0){ page = next; drawPage(page); }
+      else { top -= maxLines; }
     }
     if (M5.BtnA.wasPressed()) break;
     delay(5);

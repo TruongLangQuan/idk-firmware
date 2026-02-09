@@ -30,6 +30,8 @@ void screenTestUpdate(){
       runUniverse();
     } else if (testIndex == 4){
       runIllusion();
+    } else if (testIndex == 5){
+      runDraw();
     }
     drawListCstr("Test", TEST_ITEMS, TEST_COUNT, testIndex);
   }

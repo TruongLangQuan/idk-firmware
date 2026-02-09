@@ -41,6 +41,11 @@ void parseIRFile(const String &path);
 void sendIRCommand(int idx);
 void spamAllIRCommands();
 
+// Example helper: demonstrates parsing and sending from an IR file (call manually)
+void exampleUseIrFile(const String &path);
+// Optoma-specific convenience helper
+void exampleUseOptomaIr();
+
 // Extended API (compatible with custom_ir.h)
 void sendIRCommand(IRCode *code, bool hideDefaultUI = false);
 void sendRawCommand(uint16_t frequency, String rawData, bool hideDefaultUI = false);
@@ -58,4 +63,5 @@ void attachExternalIRsend(IRsend *sender);
 void detachExternalIRsend();
 void setIrPin(uint8_t pin);
 uint8_t getIrPin();
+bool probeIrPin(uint8_t pin);
 

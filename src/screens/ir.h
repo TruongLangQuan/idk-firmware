@@ -3,3 +3,4 @@
 
 void screenIrListUpdate();
 void screenIrCmdUpdate();
+void screenIrFileMenuUpdate();

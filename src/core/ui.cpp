@@ -1,4 +1,5 @@
 #include "core/ui.h"
+#include "modules/config.h"
 
 void drawStatus(){
   M5.Display.fillRect(0,0,SCREEN_W,STATUS_H,BLACK);
@@ -34,6 +35,23 @@ void drawStatus(){
     M5.Display.fillRect(x + 0, y + 6, 3, 2, WHITE);
     M5.Display.fillRect(x + 5, y + 4, 3, 4, WHITE);
     M5.Display.fillRect(x + 10, y + 2, 3, 6, WHITE);
+  }
+
+  // SD card icon when mounted (sdReady)
+  if (sdReady){
+    int sx = SCREEN_W - 40;
+    int sy = 2;
+    // simple SD card shape: outer rect + small notch
+    M5.Display.drawRect(sx, sy, 12, 12, WHITE);
+    // notch (top-right cut)
+    M5.Display.fillRect(sx + 8, sy, 4, 4, COLOR_BG);
+    // small inner square to denote card window
+    M5.Display.fillRect(sx + 3, sy + 4, 6, 6, WHITE);
+    // optional label 'SD'
+    M5.Display.setTextSize(1);
+    M5.Display.setTextColor(BLACK);
+    M5.Display.setCursor(sx + 2, sy + 6);
+    M5.Display.print("SD");
   }
 }
 
@@ -130,6 +148,14 @@ void drawSetting(){
     if (i == 2){
       M5.Display.setCursor(150,y);
       M5.Display.print(webuiEnabled ? "On" : "Off");
+    }
+    if (i == 6){
+      M5.Display.setCursor(150,y);
+      M5.Display.print(configGetIrPin());
+    }
+    if (i == 7){
+      M5.Display.setCursor(150,y);
+      M5.Display.print(configGetSdCsPin());
     }
   }
 }
