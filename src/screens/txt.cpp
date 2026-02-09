@@ -1,6 +1,6 @@
 #include "screens/txt.h"
 #include "core/ui.h"
-#include "modules/txt.h"
+#include "modules/media/txt.h"
 
 static int txtIndex = 0;
 

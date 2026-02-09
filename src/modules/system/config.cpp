@@ -1,6 +1,6 @@
-#include "modules/config.h"
+#include "modules/system/config.h"
 #include <Preferences.h>
-#include "modules/ir.h"
+#include "modules/features/ir.h"
 
 static Preferences cfgPrefs;
 static const char* CFG_NS = "cfg";

@@ -1,6 +1,6 @@
 #include "screens/img.h"
 #include "core/ui.h"
-#include "modules/media.h"
+#include "modules/media/media.h"
 
 void screenImgListUpdate(){
   if (M5.BtnB.wasPressed()) { if (imgCount>0) { imgIndex = (imgIndex + 1) % imgCount; drawList("Images", imgFiles, imgCount, imgIndex);} }

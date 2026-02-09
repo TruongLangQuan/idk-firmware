@@ -1,12 +1,12 @@
 #include "screens/files.h"
 #include "core/ui.h"
 #include "core/input.h"
-#include "modules/files.h"
-#include "modules/media.h"
-#include "modules/webui.h"
-#include "modules/txt.h"
-#include "modules/config.h"
-#include "modules/backup.h"
+#include "modules/files/files.h"
+#include "modules/media/media.h"
+#include "modules/network/webui.h"
+#include "modules/media/txt.h"
+#include "modules/system/config.h"
+#include "modules/system/backup.h"
 
 void screenFilesListUpdate(){
   if (M5.BtnB.wasPressed()) { filesSource = (FileSource)((filesSource + 1) % 3); drawFilesList(); }

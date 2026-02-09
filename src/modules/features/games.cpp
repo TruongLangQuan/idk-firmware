@@ -1,4 +1,4 @@
-#include "modules/games.h"
+#include "modules/features/games.h"
 #include "core/ui.h"
 #include <math.h>
 #include <Preferences.h>

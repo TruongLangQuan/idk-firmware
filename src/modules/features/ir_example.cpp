@@ -1,4 +1,4 @@
-#include "modules/ir.h"
+#include "modules/features/ir.h"
 
 // Example usage helper — not invoked automatically. Put this in your init or call from a button handler.
 void exampleUseIrFile(const String &path){

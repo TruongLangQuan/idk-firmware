@@ -1,4 +1,4 @@
-#include "modules/clock.h"
+#include "modules/features/clock.h"
 #include "core/ui.h"
 #include <time.h>
 

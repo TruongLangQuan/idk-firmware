@@ -1,8 +1,8 @@
 #include "screens/menu.h"
 #include "core/ui.h"
-#include "modules/wifi.h"
-#include "modules/media.h"
-#include "modules/clock.h"
+#include "modules/network/wifi.h"
+#include "modules/media/media.h"
+#include "modules/features/clock.h"
 
 void screenMenuUpdate(){
   if (M5.BtnB.wasPressed()) { menuIndex = (menuIndex + 1) % MENU_COUNT; drawMenu(); }

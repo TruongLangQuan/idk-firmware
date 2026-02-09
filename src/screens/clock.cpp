@@ -1,6 +1,6 @@
 #include "screens/clock.h"
 #include "core/ui.h"
-#include "modules/clock.h"
+#include "modules/features/clock.h"
 
 void screenClockUpdate(){
   if (M5.BtnPWR.wasPressed()) { 

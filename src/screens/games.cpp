@@ -1,6 +1,6 @@
 #include "screens/games.h"
 #include "core/ui.h"
-#include "modules/games.h"
+#include "modules/features/games.h"
 
 void screenGamesUpdate(){
   if (M5.BtnB.wasPressed()) { gameIndex = (gameIndex + 1) % GAME_COUNT; drawListCstr("Games", GAME_ITEMS, GAME_COUNT, gameIndex); }

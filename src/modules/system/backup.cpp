@@ -1,10 +1,9 @@
-#include "modules/backup.h"
-#include "modules/config.h"
+#include "modules/system/backup.h"
+#include "modules/system/config.h"
 #include <Preferences.h>
 #include <SPIFFS.h>
 #include <FS.h>
 #include <SD.h>
-#include "modules/config.h"
 
 static String escapeJson(const String &s){
   String out;

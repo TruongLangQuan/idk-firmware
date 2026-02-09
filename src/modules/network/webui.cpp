@@ -1,12 +1,12 @@
-#include "modules/webui.h"
+#include "modules/network/webui.h"
 #include "core/ui.h"
 #include <WebServer.h>
 #include <Preferences.h>
 #include <vector>
 #include "core/log.h"
-#include "modules/config.h"
-#include "modules/backup.h"
-#include "modules/wifi.h"
+#include "modules/system/config.h"
+#include "modules/system/backup.h"
+#include "modules/network/wifi.h"
 
 static WebServer server(80);
 static bool webuiRunning = false;

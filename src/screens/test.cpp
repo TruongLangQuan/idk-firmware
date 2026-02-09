@@ -1,7 +1,7 @@
 #include "screens/test.h"
 #include "core/ui.h"
 #include "core/input.h"
-#include "modules/test.h"
+#include "modules/features/test.h"
 
 void screenTestUpdate(){
   if (M5.BtnB.wasPressed()) { testIndex = (testIndex + 1) % TEST_COUNT; drawListCstr("Test", TEST_ITEMS, TEST_COUNT, testIndex); }

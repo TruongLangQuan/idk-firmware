@@ -1,8 +1,8 @@
-#include "modules/wifi.h"
+#include "modules/network/wifi.h"
 #include "core/ui.h"
 #include "core/input.h"
-#include "modules/webui.h"
-#include "modules/clock.h"
+#include "modules/network/webui.h"
+#include "modules/features/clock.h"
 #include "core/log.h"
 #include <Preferences.h>
 

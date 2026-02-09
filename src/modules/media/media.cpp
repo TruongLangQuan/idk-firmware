@@ -1,4 +1,4 @@
-#include "modules/media.h"
+#include "modules/media/media.h"
 #include "core/ui.h"
 #include "core/log.h"
 

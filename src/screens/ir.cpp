@@ -1,6 +1,6 @@
 #include "screens/ir.h"
 #include "core/ui.h"
-#include "modules/ir.h"
+#include "modules/features/ir.h"
 
 void screenIrListUpdate(){
   if (M5.BtnB.wasPressed()) { if (irCount>0) { irIndex = (irIndex + 1) % irCount; drawList("IR", irFiles, irCount, irIndex);} }

@@ -1,6 +1,6 @@
 #include "screens/gif.h"
 #include "core/ui.h"
-#include "modules/media.h"
+#include "modules/media/media.h"
 
 void screenGifListUpdate(){
   if (M5.BtnB.wasPressed()) { if (gifCount>0) { gifIndex = (gifIndex + 1) % gifCount; drawList("Gifs", gifFiles, gifCount, gifIndex);} }

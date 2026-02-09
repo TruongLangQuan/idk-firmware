@@ -2,12 +2,12 @@
 #include "core/ui.h"
 #include "core/input.h"
 #include "system/power.h"
-#include "modules/webui.h"
-#include "modules/wifi.h"
-#include "modules/backup.h"
-#include "modules/files.h"
-#include "modules/config.h"
-#include "modules/ir.h"
+#include "modules/network/webui.h"
+#include "modules/network/wifi.h"
+#include "modules/system/backup.h"
+#include "modules/files/files.h"
+#include "modules/system/config.h"
+#include "modules/features/ir.h"
 
 void screenSettingUpdate(){
   if (M5.BtnB.wasPressed()) { setIndex = (setIndex + 1) % SET_COUNT; drawSetting(); }

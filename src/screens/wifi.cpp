@@ -1,6 +1,6 @@
 #include "screens/wifi.h"
 #include "core/ui.h"
-#include "modules/wifi.h"
+#include "modules/network/wifi.h"
 
 void screenWifiUpdate(){
   if (M5.BtnB.wasPressed()) { if (wifiCount>0) { wifiIndex = (wifiIndex + 1) % wifiCount; drawWifiList(); } }

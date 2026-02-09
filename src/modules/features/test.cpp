@@ -1,4 +1,4 @@
-#include "modules/test.h"
+#include "modules/features/test.h"
 #include "core/ui.h"
 #include <tinyexpr.h>
 #include <math.h>
@@ -32,8 +32,7 @@ void drawPlot(const String &expr){
   M5.Display.fillScreen(BLACK);
   drawStatus();
 
-  for (int x=0;x<SCREEN_W;x+=24) M5.Display.drawFastVLine(x, STATUS_H, SCREEN_H-STATUS_H, 0x39E7);
-  for (int y=STATUS_H;y<SCREEN_H;y+=22) M5.Display.drawFastHLine(0, y, SCREEN_W, 0x39E7);
+  // Remove old grid, will draw new one below
 
   int cx = SCREEN_W/2;
   int cy = STATUS_H + (SCREEN_H-STATUS_H)/2;
@@ -48,44 +47,30 @@ void drawPlot(const String &expr){
   M5.Display.setCursor(cx+4, STATUS_H+2);
   M5.Display.print("y");
 
-  // Increased axis range to -100 to 100
-  const int axisMin = -100;
-  const int axisMax = 100;
+  // Axis range -50 to 50
+  const int axisMin = -50;
+  const int axisMax = 50;
   const int axisRange = axisMax - axisMin;
   
-  // Smaller grid lines - every 10 units for better visibility
+  // Grid lines - every 10 units for better visibility
   for (int x=axisMin; x<=axisMax; x+=10){
     int px = (int)((x - axisMin) * (SCREEN_W-1) / (double)axisRange);
     if (px >= 0 && px < SCREEN_W){
-      // Draw lighter grid lines
-      uint16_t gridColor = (x % 50 == 0) ? 0x39E7 : 0x18C3; // Darker for major lines
+      // Draw lighter grid lines for minor, darker for major
+      uint16_t gridColor = (x % 50 == 0) ? 0x39E7 : 0x18C3; // Darker for major lines (every 50)
       M5.Display.drawFastVLine(px, STATUS_H, SCREEN_H-STATUS_H, gridColor);
     }
   }
   for (int y=axisMin; y<=axisMax; y+=10){
     int py = cy - (int)(y * ((SCREEN_H-STATUS_H-1) / (double)axisRange));
     if (py >= STATUS_H && py < SCREEN_H){
-      // Draw lighter grid lines
-      uint16_t gridColor = (y % 50 == 0) ? 0x39E7 : 0x18C3; // Darker for major lines
+      // Draw lighter grid lines for minor, darker for major
+      uint16_t gridColor = (y % 50 == 0) ? 0x39E7 : 0x18C3; // Darker for major lines (every 50)
       M5.Display.drawFastHLine(0, py, SCREEN_W, gridColor);
     }
   }
   
-  // Axis labels - show every 50 units
-  const int ticks[] = {-100, -50, 0, 50, 100};
-  for (int i=0;i<5;i++){
-    int v = ticks[i];
-    int px = (int)((v - axisMin) * (SCREEN_W-1) / (double)axisRange);
-    if (px >= 0 && px < SCREEN_W){
-      M5.Display.setCursor(px-8, cy+4);
-      M5.Display.printf("%d", v);
-    }
-    int py = cy - (int)(v * ((SCREEN_H-STATUS_H-1) / (double)axisRange));
-    if (py >= STATUS_H && py < SCREEN_H){
-      M5.Display.setCursor(cx+4, py-4);
-      M5.Display.printf("%d", v);
-    }
-  }
+  // No axis labels (removed as requested)
 
   double xval = 0;
   te_variable vars[] = { {"x", &xval} };
@@ -100,16 +85,29 @@ void drawPlot(const String &expr){
   }
 
   // Plot with improved resolution and range
+  double yRange = SCREEN_H - STATUS_H - 1;
+  int prevPy = -1;
   for (int px=0; px<SCREEN_W; px++){
     double x = ((double)px / (SCREEN_W-1)) * axisRange + axisMin;
     xval = x;
     double y = te_eval(e);
-    if (y < axisMin || y > axisMax) continue;
-    int py = cy - (int)((y - axisMin) * ((SCREEN_H-STATUS_H-1) / (double)axisRange));
+    if (y < axisMin || y > axisMax) {
+      prevPy = -1;
+      continue;
+    }
+    // Convert y value to screen coordinate
+    // cy is at y=0, so y values map: y=axisMax -> top, y=axisMin -> bottom
+    int py = cy - (int)(y * (yRange / (double)axisRange));
     if (py >= STATUS_H && py < SCREEN_H) {
-      // Draw thicker line for better visibility
+      // Draw pixel
       M5.Display.drawPixel(px, py, YELLOW);
-      if (px > 0) M5.Display.drawLine(px-1, py, px, py, YELLOW);
+      // Draw line from previous point if valid
+      if (prevPy >= STATUS_H && prevPy < SCREEN_H) {
+        M5.Display.drawLine(px-1, prevPy, px, py, YELLOW);
+      }
+      prevPy = py;
+    } else {
+      prevPy = -1;
     }
   }
   te_free(e);
@@ -740,39 +738,68 @@ void runDraw(){
       break;
     }
     
-    // Place pixel: M5 pressed
-    if (M5.BtnA.wasPressed()){
+    // Place pixel: M5 pressed (alone)
+    if (M5.BtnA.wasPressed() && !M5.BtnB.isPressed()){
       setPixel(px, py, true);
     }
     
-    // Move right: Next pressed
+    // Erase pixel: M5 + Next pressed together
+    if (M5.BtnA.isPressed() && M5.BtnB.wasPressed() && !M5.BtnA.wasPressed()){
+      setPixel(px, py, false);
+    }
+    
+    // Handle Next button (BtnB)
+    static bool nextWasPressed = false;
+    static uint32_t nextPressTime = 0;
+    static uint32_t lastMoveRight = 0;
+    static uint32_t lastMoveLeft = 0;
+    
     if (M5.BtnB.wasPressed()){
+      nextWasPressed = true;
+      nextPressTime = millis();
+      // Move right on press
       px++;
       if (px >= DRAW_W) px = DRAW_W - 1;
     }
-    // Move left: Next held
-    if (M5.BtnB.isPressed() && !M5.BtnB.wasPressed()){
-      static uint32_t lastMoveLeft = 0;
-      if (millis() - lastMoveLeft > 100){
-        px--;
-        if (px < 0) px = 0;
-        lastMoveLeft = millis();
+    
+    if (M5.BtnB.isPressed() && nextWasPressed){
+      // If held for more than 200ms, start moving left
+      if (millis() - nextPressTime > 200){
+        if (millis() - lastMoveLeft > 100){
+          px--;
+          if (px < 0) px = 0;
+          lastMoveLeft = millis();
+        }
       }
+    } else {
+      nextWasPressed = false;
     }
     
-    // Move down: Prev pressed
+    // Handle Prev button (BtnPWR)
+    static bool prevWasPressed = false;
+    static uint32_t prevPressTime = 0;
+    static uint32_t lastMoveDown = 0;
+    static uint32_t lastMoveUp = 0;
+    
     if (M5.BtnPWR.wasPressed() && !M5.BtnA.isPressed()){
+      prevWasPressed = true;
+      prevPressTime = millis();
+      // Move down on press
       py++;
       if (py >= DRAW_H) py = DRAW_H - 1;
     }
-    // Move up: Prev held
-    if (M5.BtnPWR.isPressed() && !M5.BtnA.isPressed() && !M5.BtnPWR.wasPressed()){
-      static uint32_t lastMoveUp = 0;
-      if (millis() - lastMoveUp > 100){
-        py--;
-        if (py < 0) py = 0;
-        lastMoveUp = millis();
+    
+    if (M5.BtnPWR.isPressed() && !M5.BtnA.isPressed() && prevWasPressed){
+      // If held for more than 200ms, start moving up
+      if (millis() - prevPressTime > 200){
+        if (millis() - lastMoveUp > 100){
+          py--;
+          if (py < 0) py = 0;
+          lastMoveUp = millis();
+        }
       }
+    } else {
+      prevWasPressed = false;
     }
     
     // Draw canvas - scale up from reduced resolution

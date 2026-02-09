@@ -1,5 +1,5 @@
 #include "core/ui.h"
-#include "modules/config.h"
+#include "modules/system/config.h"
 
 void drawStatus(){
   M5.Display.fillRect(0,0,SCREEN_W,STATUS_H,BLACK);
