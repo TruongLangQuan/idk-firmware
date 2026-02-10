@@ -441,7 +441,7 @@ void runUniverse(){
   float angle = 0.0f;
 
   struct P3 { float x,y,z; uint16_t c; };
-  // Further reduced star count to save RAM
+  // Starfield (kept modest for RAM, but richer visuals)
   static P3 stars[64];
   static bool seeded = false;
   if (!seeded){
@@ -450,20 +450,21 @@ void runUniverse(){
       // wider spread and deeper z to improve 3D feeling
       stars[i].x = (rand()%800 - 400) / 10.0f; // -40 .. +40
       stars[i].y = (rand()%600 - 300) / 10.0f; // -30 .. +30
-      stars[i].z = (rand()%700) / 10.0f + 5.0f; // 5 .. 75
-      // subtle palette variation
-      if (i % 6 == 0) stars[i].c = WHITE;
-      else if (i % 6 == 1) stars[i].c = 0xF81F; // pink
-      else if (i % 6 == 2) stars[i].c = 0x07FF; // cyan
-      else if (i % 6 == 3) stars[i].c = 0xFFE0; // light yellow
-      else stars[i].c = 0x7BEF; // dim
+      stars[i].z = (rand()%700) / 10.0f + 10.0f; // 10 .. 80
+      // subtle palette variation by depth (cooler far, warmer near)
+      float depth = stars[i].z;
+      if (depth < 20)      stars[i].c = 0xFFFF; // bright white
+      else if (depth < 40) stars[i].c = 0xF81F; // pink
+      else if (depth < 55) stars[i].c = 0x07FF; // cyan
+      else if (depth < 70) stars[i].c = 0xFFE0; // light yellow
+      else                 stars[i].c = 0x7BEF; // dim
     }
   }
 
   auto project = [&](float x, float y, float z, int &sx, int &sy){
     // improved perspective: larger scale and center offset
-    float zz = z + 6.0f;
-    float scale = 28.0f; // larger scale for stronger perspective
+    float zz = z + 8.0f;
+    float scale = 30.0f; // slightly stronger perspective
     sx = (int)(SCREEN_W/2 + x * scale / zz);
     sy = (int)(STATUS_H + (SCREEN_H-STATUS_H)/2 + y * scale / zz);
   };
@@ -473,7 +474,12 @@ void runUniverse(){
     if (M5.BtnPWR.wasPressed()) break;
     if (M5.BtnB.wasPressed()) { mode = (mode + 1) % 5; }
 
-    M5.Display.fillScreen(BLACK);
+    // space background gradient (subtle vignette)
+    for (int y=STATUS_H;y<SCREEN_H;y++){
+      uint8_t shade = 8 + (uint8_t)((y-STATUS_H) * 10 / (SCREEN_H-STATUS_H));
+      uint16_t col = ((shade & 0x1F) << 11) | ((shade & 0x3F) << 5) | (shade & 0x1F);
+      M5.Display.drawFastHLine(0, y, SCREEN_W, col);
+    }
     drawStatus();
     M5.Display.setTextColor(COLOR_DIM);
     M5.Display.setCursor(6, STATUS_H + 2);
@@ -483,7 +489,7 @@ void runUniverse(){
     else if (mode==3) M5.Display.print("Galaxy 3D");
     else M5.Display.print("Star System 3D");
 
-    // 3D starfield (draw larger points depending on depth) - larger and more dynamic
+    // 3D starfield (size + color vary with depth and mode)
     for (int i=0;i<64;i++){
       float x = stars[i].x;
       float y = stars[i].y;
@@ -513,7 +519,7 @@ void runUniverse(){
         }
       }
       // move star forward slightly; if it crosses near plane, respawn far away
-      stars[i].z -= 0.12f; 
+      stars[i].z -= 0.10f; 
       if (stars[i].z < 1.0f) {
         stars[i].x = (rand()%800 - 400) / 10.0f;
         stars[i].y = (rand()%600 - 300) / 10.0f;

@@ -131,29 +131,39 @@ void drawListCstr(const char* title, const char** items, int count, int index){
 void drawSetting(){
   M5.Display.fillScreen(COLOR_BG);
   drawStatus();
-  for(int i=0;i<SET_COUNT;i++){
+  // Scrollable settings list (similar pattern to drawListCstr)
+  const int maxShow = 7;
+  int first = 0;
+  if (setIndex >= maxShow) first = setIndex - maxShow + 1;
+
+  for (int i = 0; i < maxShow; i++){
+    int idx = first + i;
+    if (idx >= SET_COUNT) break;
+
     int y = STATUS_H + 12 + i*16;
-    if (i == setIndex){
+    if (idx == setIndex){
       M5.Display.fillRect(0,y-2,SCREEN_W,12,COLOR_HI);
       M5.Display.setTextColor(WHITE);
     } else {
       M5.Display.setTextColor(COLOR_DIM);
     }
     M5.Display.setCursor(8,y);
-    M5.Display.print(SET_ITEMS[i]);
-    if (i == 0){
+    M5.Display.print(SET_ITEMS[idx]);
+
+    // Value columns for specific settings
+    if (idx == 0){
       M5.Display.setCursor(150,y);
       M5.Display.print(DIM_TEXT[dimIndex]);
     }
-    if (i == 2){
+    if (idx == 2){
       M5.Display.setCursor(150,y);
       M5.Display.print(webuiEnabled ? "On" : "Off");
     }
-    if (i == 6){
+    if (idx == 6){
       M5.Display.setCursor(150,y);
       M5.Display.print(configGetIrPin());
     }
-    if (i == 7){
+    if (idx == 7){
       M5.Display.setCursor(150,y);
       M5.Display.print(configGetSdCsPin());
     }

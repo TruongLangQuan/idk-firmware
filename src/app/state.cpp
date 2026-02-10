@@ -25,7 +25,6 @@ int cmdCount = 0;
 int cmdIndex = 0;
 int cmdScroll = 0;
 int irFileMenuIndex = 0;
-IRsend irsend(IR_PIN);
 
 AnimatedGIF gif;
 File gifFile;

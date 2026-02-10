@@ -57,35 +57,61 @@ static void wrapLineMono(const String &line, int maxChars, std::vector<String> &
   String current = "";
   current.reserve(maxChars * 3);
   int count = 0;
+  int lastSpacePos = -1; // vị trí space cuối trong current (tính theo byte)
+
   while (i < (int)line.length()){
     int clen = utf8CharLen((uint8_t)line[i]);
     char chbuf[5] = {0};
     for (int k=0;k<clen && (i+k) < (int)line.length(); k++) chbuf[k] = line[i+k];
+
+    // Nếu đã vượt quá maxChars, cố gắng ngắt tại khoảng trắng gần nhất để tránh vỡ từ
     if (count >= maxChars && current.length()){
-      current.trim();
-      if (ESP.getFreeHeap() < 16000) { LOGE("Low heap during wrapLineMono, stop wrapping"); return; }
-      try {
-        out.push_back(current);
-      } catch (const std::bad_alloc &e) {
-        LOGE("bad_alloc in wrapLineMono: %s", e.what());
-        return;
+      String part = current;
+      String rest = "";
+      if (lastSpacePos > 0 && lastSpacePos < (int)current.length()){
+        part = current.substring(0, lastSpacePos);
+        // bỏ space tại vị trí lastSpacePos
+        rest = current.substring(lastSpacePos + 1);
       }
-      current = "";
+      part.trim();
+      if (part.length()){
+        if (ESP.getFreeHeap() < 16000) { LOGE("Low heap during wrapLineMono, stop wrapping"); return; }
+        try {
+          out.push_back(part);
+        } catch (const std::bad_alloc &e) {
+          LOGE("bad_alloc in wrapLineMono: %s", e.what());
+          return;
+        }
+      }
+      current = rest;
       count = 0;
+      lastSpacePos = -1;
+      // đếm lại số ký tự trong current (theo UTF-8)
+      int tmpIdx = 0;
+      while (tmpIdx < (int)current.length()){
+        int cclen = utf8CharLen((uint8_t)current[tmpIdx]);
+        count++;
+        tmpIdx += cclen;
+      }
     }
+
     current += chbuf;
+    // nếu là khoảng trắng ASCII thì ghi nhớ vị trí để ngắt dòng sau này
+    if (clen == 1 && chbuf[0] == ' ') lastSpacePos = current.length() - 1;
     count++;
     i += clen;
   }
 
   if (current.length()){
     current.trim();
-    if (ESP.getFreeHeap() < 16000) { LOGE("Low heap during wrapLineMono final push, skip"); return; }
-    try {
-      out.push_back(current);
-    } catch (const std::bad_alloc &e) {
-      LOGE("bad_alloc in wrapLineMono final push: %s", e.what());
-      return;
+    if (current.length()){
+      if (ESP.getFreeHeap() < 16000) { LOGE("Low heap during wrapLineMono final push, skip"); return; }
+      try {
+        out.push_back(current);
+      } catch (const std::bad_alloc &e) {
+        LOGE("bad_alloc in wrapLineMono final push: %s", e.what());
+        return;
+      }
     }
   }
 }

@@ -75,7 +75,6 @@ extern int cmdCount;
 extern int cmdIndex;
 extern int cmdScroll;
 extern int irFileMenuIndex;
-extern IRsend irsend;
 
 // ===== GIF/PNG =====
 extern AnimatedGIF gif;
