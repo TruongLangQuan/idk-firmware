@@ -9,7 +9,13 @@ void screenImgListUpdate(){
   if (M5.BtnA.wasPressed() && imgCount>0){
     String path = imgFiles[imgIndex];
     screen = SCR_IMG_VIEW;
-    showPNG(path.c_str());
+    String lower = path;
+    lower.toLowerCase();
+    if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+      showJPG(path.c_str());
+    } else {
+      showPNG(path.c_str());
+    }
     while (true){ M5.update(); if (M5.BtnPWR.wasPressed()) break; delay(10); }
     screen = SCR_IMG_LIST; drawList("Images", imgFiles, imgCount, imgIndex);
   }

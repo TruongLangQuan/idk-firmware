@@ -1,3 +1,5 @@
 .pio/libdeps/m5stickc_plus2/tinyexpr
 .pio
 .continue
+.blackbox
+.vscode

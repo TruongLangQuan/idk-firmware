@@ -121,13 +121,45 @@ void showPNG(const char* path){
 
 void showJPG(const char* path){
   M5.Display.fillScreen(BLACK);
+  
+  File jpgFile = SPIFFS.open(path, "r");
+  if (!jpgFile){
+    M5.Display.setTextColor(RED);
+    M5.Display.setCursor(6, STATUS_H + 20);
+    M5.Display.print("JPG file not found");
+    return;
+  }
+  
+  // Check JPEG header
+  uint8_t header[3];
+  if (jpgFile.read(header, 3) != 3){
+    M5.Display.setTextColor(RED);
+    M5.Display.setCursor(6, STATUS_H + 20);
+    M5.Display.print("Invalid JPG header");
+    jpgFile.close();
+    return;
+  }
+  
+  // JPEG files start with FF D8 FF
+  if (header[0] != 0xFF || header[1] != 0xD8 || header[2] != 0xFF){
+    M5.Display.setTextColor(RED);
+    M5.Display.setCursor(6, STATUS_H + 20);
+    M5.Display.print("Not a valid JPG");
+    jpgFile.close();
+    return;
+  }
+  jpgFile.close();
+  
+  // Try M5.Display jpg decode
   int y = STATUS_H;
   int h = SCREEN_H - STATUS_H;
+  
   bool ok = M5.Display.drawJpgFile(path, 0, y, SCREEN_W, h);
+  
   if (!ok){
     M5.Display.setTextColor(RED);
     M5.Display.setCursor(6, STATUS_H + 20);
-    M5.Display.print("JPG open failed");
+    M5.Display.print("JPG decode error");
   }
 }
 
