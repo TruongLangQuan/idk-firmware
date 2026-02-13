@@ -440,195 +440,204 @@ void runUniverse(){
   int mode = 0; // 0 black hole,1 neutron,2 nebula,3 galaxy,4 star system
   float angle = 0.0f;
 
-  struct P3 { float x,y,z; uint16_t c; };
-  // Starfield (kept modest for RAM, but richer visuals)
-  static P3 stars[64];
-  static bool seeded = false;
-  if (!seeded){
-    seeded = true;
-    for (int i=0;i<64;i++){
-      // wider spread and deeper z to improve 3D feeling
-      stars[i].x = (rand()%800 - 400) / 10.0f; // -40 .. +40
-      stars[i].y = (rand()%600 - 300) / 10.0f; // -30 .. +30
-      stars[i].z = (rand()%700) / 10.0f + 10.0f; // 10 .. 80
-      // subtle palette variation by depth (cooler far, warmer near)
-      float depth = stars[i].z;
-      if (depth < 20)      stars[i].c = 0xFFFF; // bright white
-      else if (depth < 40) stars[i].c = 0xF81F; // pink
-      else if (depth < 55) stars[i].c = 0x07FF; // cyan
-      else if (depth < 70) stars[i].c = 0xFFE0; // light yellow
-      else                 stars[i].c = 0x7BEF; // dim
-    }
-  }
+  auto project3D = [&](float x, float y, float z, int cx, int cy, int &sx, int &sy){
+    float dz = z + 96.0f;
+    sx = cx + (int)(x * 92.0f / dz);
+    sy = cy + (int)(y * 92.0f / dz);
+  };
 
-  auto project = [&](float x, float y, float z, int &sx, int &sy){
-    // improved perspective: larger scale and center offset
-    float zz = z + 8.0f;
-    float scale = 30.0f; // slightly stronger perspective
-    sx = (int)(SCREEN_W/2 + x * scale / zz);
-    sy = (int)(STATUS_H + (SCREEN_H-STATUS_H)/2 + y * scale / zz);
+  auto rotY = [&](float &x, float &z, float a){
+    float ca = cos(a), sa = sin(a);
+    float nx = x * ca + z * sa;
+    float nz = -x * sa + z * ca;
+    x = nx; z = nz;
+  };
+
+  auto rotX = [&](float &y, float &z, float a){
+    float ca = cos(a), sa = sin(a);
+    float ny = y * ca - z * sa;
+    float nz = y * sa + z * ca;
+    y = ny; z = nz;
   };
 
   while (true){
     M5.update();
     if (M5.BtnPWR.wasPressed()) break;
-    if (M5.BtnB.wasPressed()) { mode = (mode + 1) % 5; }
+    if (M5.BtnB.wasPressed()) mode = (mode + 1) % 5;
 
-    // space background gradient (subtle vignette)
-    for (int y=STATUS_H;y<SCREEN_H;y++){
-      uint8_t shade = 8 + (uint8_t)((y-STATUS_H) * 10 / (SCREEN_H-STATUS_H));
-      uint16_t col = ((shade & 0x1F) << 11) | ((shade & 0x3F) << 5) | (shade & 0x1F);
-      M5.Display.drawFastHLine(0, y, SCREEN_W, col);
-    }
+    M5.Display.fillScreen(BLACK);
     drawStatus();
+
+    for (int y=STATUS_H + 8; y<SCREEN_H; y+=12) M5.Display.drawFastHLine(0, y, SCREEN_W, 0x1082);
+    for (int x=0; x<SCREEN_W; x+=12) M5.Display.drawFastVLine(x, STATUS_H, SCREEN_H-STATUS_H, 0x1082);
+    for (int y=STATUS_H + 14; y<SCREEN_H; y+=24) M5.Display.drawFastHLine(0, y, SCREEN_W, 0x2104);
+    for (int x=0; x<SCREEN_W; x+=24) M5.Display.drawFastVLine(x, STATUS_H, SCREEN_H-STATUS_H, 0x2104);
+
     M5.Display.setTextColor(COLOR_DIM);
     M5.Display.setCursor(6, STATUS_H + 2);
-    if (mode==0) M5.Display.print("Black Hole 3D");
-    else if (mode==1) M5.Display.print("Neutron Star 3D");
-    else if (mode==2) M5.Display.print("Nebula 3D");
-    else if (mode==3) M5.Display.print("Galaxy 3D");
-    else M5.Display.print("Star System 3D");
+    if (mode==0) M5.Display.print("Black Hole");
+    else if (mode==1) M5.Display.print("Neutron Star");
+    else if (mode==2) M5.Display.print("Nebula");
+    else if (mode==3) M5.Display.print("Galaxy");
+    else M5.Display.print("Star System");
 
-    // 3D starfield (size + color vary with depth and mode)
-    for (int i=0;i<64;i++){
-      float x = stars[i].x;
-      float y = stars[i].y;
-      // subtle bobbing + small forward motion to add depth
-      float z = stars[i].z + 0.6f * sin(angle*0.15f + i);
+    int cx = SCREEN_W / 2;
+    int cy = STATUS_H + (SCREEN_H - STATUS_H) / 2;
+
+    for (int i=0; i<56; i++){
+      float a = i * 0.28f + angle * 0.18f;
+      float r = 18.0f + (i % 14) * 6.5f;
+      float x = cos(a) * r;
+      float y = sin(a * 1.25f) * (8.0f + (i % 6) * 2.5f);
+      float z = 18.0f + (i % 16) * 4.8f;
       int sx, sy;
-      project(x, y, z, sx, sy);
+      project3D(x, y, z, cx, cy, sx, sy);
       if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
-        float zz = z + 6.0f;
-        // size and brightness scale with proximity
-        int sr = (int)(6.5f / zz);
-        if (sr < 1) sr = 1;
-        if (sr > 6) sr = 6;
-        // compute brightness-like color by selecting palette based on depth
-        uint16_t col = stars[i].c;
-        if (zz < 10.0f) {
-          // bright core: draw small glow
-          for (int g = sr+1; g > 0; g--) {
-            uint16_t glowCol = (g==sr+1) ? 0xFFFF : col;
-            M5.Display.drawCircle(sx, sy, g, glowCol);
-          }
-          M5.Display.fillCircle(sx, sy, sr, col);
-        } else {
-          // distant stars: draw single pixel or small circle
-          if (sr <= 2) M5.Display.drawPixel(sx, sy, col);
-          else M5.Display.fillCircle(sx, sy, sr-1, col);
-        }
-      }
-      // move star forward slightly; if it crosses near plane, respawn far away
-      stars[i].z -= 0.10f; 
-      if (stars[i].z < 1.0f) {
-        stars[i].x = (rand()%800 - 400) / 10.0f;
-        stars[i].y = (rand()%600 - 300) / 10.0f;
-        stars[i].z = (rand()%700) / 10.0f + 40.0f;
+        if ((i & 3) == 0) M5.Display.fillCircle(sx, sy, 1, WHITE);
+        else M5.Display.drawPixel(sx, sy, 0xCE79);
       }
     }
 
-    // 3D bodies
     if (mode == 0){
-      // black hole: rotating accretion disk + center
-      for (int i=0;i<80;i++){
-        float a = angle*0.9f + i*0.08f;
-        float r = 6.0f + (i%30)*0.45f; // larger disk and more particles
-        float x = cos(a) * r;
-        float y = sin(a) * r * 0.45f;
-        float z = sin(a*1.2f) * 1.5f;
-        int sx, sy;
-        project(x, y, z, sx, sy);
-        if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
-          float zz = z + 6.0f;
-          int pr = (int)(3.5f / zz);
-          if (pr < 1) pr = 1;
-          if (pr > 5) pr = 5;
-          M5.Display.fillCircle(sx, sy, pr, (i%4==0)?YELLOW:0xFFE0);
-        }
+      int seg = 48;
+      int prevA[2] = {0,0}, prevB[2] = {0,0}, prevC[2] = {0,0};
+      for (int i=0;i<=seg;i++){
+        float t = (2.0f * M_PI * i) / seg;
+        float x = cos(t) * 28.0f;
+        float y = sin(t) * 8.5f;
+        float z = sin(t + angle) * 9.0f;
+        rotY(x, z, angle * 0.8f);
+        rotX(y, z, angle * 0.22f);
+        int p0x, p0y;
+        project3D(x, y, z, cx, cy, p0x, p0y);
+        if (i > 0) M5.Display.drawLine(prevA[0], prevA[1], p0x, p0y, 0xEF7D);
+        prevA[0] = p0x; prevA[1] = p0y;
+
+        float x2 = cos(t + M_PI) * 26.0f;
+        float y2 = sin(t + M_PI) * 8.0f;
+        float z2 = sin(t + M_PI + angle) * 10.0f;
+        rotY(x2, z2, angle * 0.8f);
+        rotX(y2, z2, angle * 0.22f);
+        int p1x, p1y;
+        project3D(x2, y2, z2, cx, cy, p1x, p1y);
+        if (i > 0) M5.Display.drawLine(prevB[0], prevB[1], p1x, p1y, 0xDEFB);
+        prevB[0] = p1x; prevB[1] = p1y;
+
+        float x3 = cos(t + angle * 0.7f) * 17.0f;
+        float y3 = sin(t + angle * 0.7f) * 4.5f;
+        float z3 = cos(t * 1.5f + angle) * 6.0f;
+        rotY(x3, z3, angle * 1.1f);
+        int p2x, p2y;
+        project3D(x3, y3, z3, cx, cy, p2x, p2y);
+        if (i > 0) M5.Display.drawLine(prevC[0], prevC[1], p2x, p2y, 0x7BEF);
+        prevC[0] = p2x; prevC[1] = p2y;
       }
-      int cx, cy;
-      project(0,0,0, cx, cy);
-      // central event horizon with glow - larger
-      for (int g=18; g>8; g--){ M5.Display.drawCircle(cx, cy, g, 0x18E3); }
-      M5.Display.fillCircle(cx, cy, 8, BLACK);
+      for (int j=0;j<18;j++){
+        float a = angle * 1.4f + j * (2.0f * M_PI / 18.0f);
+        int px = cx + (int)(cos(a) * 34.0f);
+        int py = cy + (int)(sin(a) * 6.0f);
+        M5.Display.drawPixel(px, py, 0xFFE0);
+      }
+      M5.Display.drawCircle(cx, cy, 8, WHITE);
+      M5.Display.fillCircle(cx, cy, 6, BLACK);
     } else if (mode == 1){
-      // neutron star with 3D beams - larger
-      int cx, cy;
-      project(0,0,0, cx, cy);
-      M5.Display.fillCircle(cx, cy, 12, 0xFFFF);
-      for (int i=0;i<12;i++){
-        float a = angle + i*0.4f;
-        float x = cos(a)*3.5f;
-        float y = sin(a)*3.5f;
+      int seg = 18;
+      for (int i=0;i<seg;i++){
+        float a = i * (2.0f * M_PI / seg) + angle;
+        float x = cos(a) * 23.0f;
+        float y = sin(a) * 23.0f;
+        float z = sin(a * 2.2f) * 9.0f;
         int sx, sy;
-        project(x,y,0, sx, sy);
-        M5.Display.drawLine(cx, cy, sx, sy, 0xBDF7);
+        project3D(x, y, z, cx, cy, sx, sy);
+        M5.Display.drawLine(cx, cy, sx, sy, 0xCE79);
       }
-      for (int i=0;i<2;i++){
-        float a = angle + (i?3.14f:0);
-        float x = cos(a)*7.0f;
-        float y = sin(a)*7.0f;
-        int sx, sy;
-        project(x,y,0, sx, sy);
-        M5.Display.drawLine(cx, cy, sx, sy, 0x07FF);
-      }
-    } else if (mode == 2){
-      // nebula: 3D cloud
-      for (int i=0;i<40;i++){
-        float a = angle*0.3f + i*0.2f;
-        float r = 2.0f + (i%15)*0.3f;
-        float x = cos(a)*r;
-        float y = sin(a*0.7f)*r*0.6f;
-        float z = cos(a*0.5f)*1.5f;
-        int sx, sy;
-        project(x,y,z, sx, sy);
-        uint16_t c = (i%3==0)?0xF81F:((i%3==1)?0x07FF:0x5B6F);
-        if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
-          float zz = z + 8.0f;
-          int pr = (int)(2.0f / zz);
-          if (pr < 1) pr = 1;
-          if (pr > 3) pr = 3;
-          M5.Display.fillCircle(sx, sy, pr, c);
+      for (int lat=-2; lat<=2; lat++){
+        int prev[2] = {0,0};
+        for (int i=0;i<=24;i++){
+          float t = (2.0f * M_PI * i) / 24.0f;
+          float x = cos(t) * (10.0f - fabs(lat) * 1.8f);
+          float y = sin(t) * (10.0f - fabs(lat) * 1.8f);
+          float z = lat * 3.2f;
+          rotY(x, z, angle * 0.7f);
+          rotX(y, z, angle * 0.45f);
+          int sx, sy;
+          project3D(x, y, z, cx, cy, sx, sy);
+          if (i > 0) M5.Display.drawLine(prev[0], prev[1], sx, sy, WHITE);
+          prev[0] = sx; prev[1] = sy;
         }
+      }
+      M5.Display.drawCircle(cx, cy, 10, WHITE);
+    } else if (mode == 2){
+      int prevCloud[3][2] = {{0,0},{0,0},{0,0}};
+      for (int i=0;i<66;i++){
+        float a = i * 0.32f + angle * 0.55f;
+        float r = 9.0f + (i % 12) * 2.3f;
+        float x = cos(a) * r;
+        float y = sin(a * 1.45f) * (r * 0.55f);
+        float z = cos(a * 0.9f) * 11.0f;
+        rotY(x, z, angle * 0.22f);
+        int sx, sy;
+        project3D(x, y, z, cx, cy, sx, sy);
+        if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H) M5.Display.drawPixel(sx, sy, 0xE73C);
+        int lane = i % 3;
+        if (i >= 3) M5.Display.drawLine(prevCloud[lane][0], prevCloud[lane][1], sx, sy, 0xC638);
+        prevCloud[lane][0] = sx;
+        prevCloud[lane][1] = sy;
       }
     } else if (mode == 3){
-      // galaxy: 3D spiral arms
-      for (int i=0;i<60;i++){
-        float a = i*0.2f + angle;
-        float r = i*0.08f;
-        float x = cos(a)*r;
-        float y = sin(a)*r*0.4f;
-        float z = sin(a*0.7f)*0.6f;
-        int sx, sy;
-        project(x,y,z, sx, sy);
-        if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
-          float zz = z + 8.0f;
-          int pr = (int)(2.5f / zz);
-          if (pr < 1) pr = 1;
-          if (pr > 3) pr = 3;
-          M5.Display.fillCircle(sx, sy, pr, (i%5==0)?0x7BEF:WHITE);
+      for (int arm=0; arm<3; arm++){
+        int prev[2] = {0,0};
+        for (int i=0;i<52;i++){
+          float a = i * 0.28f + angle + arm * 2.094f;
+          float r = 1.5f + i * 0.68f;
+          float x = cos(a) * r;
+          float y = sin(a) * r * 0.42f;
+          float z = sin(a * 0.72f + arm) * 6.5f;
+          int sx, sy;
+          project3D(x, y, z, cx, cy, sx, sy);
+          if (i > 0) M5.Display.drawLine(prev[0], prev[1], sx, sy, (arm==0)?WHITE:(arm==1?0xD6BA:0xBDF7));
+          prev[0] = sx; prev[1] = sy;
+          if ((i % 8) == 0) M5.Display.drawPixel(sx, sy, WHITE);
         }
       }
-      int cx, cy;
-      project(0,0,0, cx, cy);
-      M5.Display.fillCircle(cx, cy, 10, YELLOW); // Larger galaxy center
+      M5.Display.drawCircle(cx, cy, 4, WHITE);
     } else {
-      // star system: 3D orbits - larger bodies
-      int cx, cy;
-      project(0,0,0, cx, cy);
-      M5.Display.fillCircle(cx, cy, 10, YELLOW); // Larger sun
-      for (int i=0;i<3;i++){
-        float a = angle*(0.5f+i*0.2f);
-        float r = 2.0f + i*2.0f;
-        float x = cos(a)*r;
-        float y = sin(a)*r;
-        float z = sin(a*0.6f);
-        int sx, sy;
-        project(x,y,z, sx, sy);
-        uint16_t c = (i==0)?0x07E0:(i==1?0xF800:0x001F);
-        if (sx>=0 && sx<SCREEN_W && sy>=STATUS_H && sy<SCREEN_H){
-          int pr = 4 + i*2; // make planets larger
-          M5.Display.fillCircle(sx, sy, pr, c);
+      M5.Display.drawCircle(cx, cy, 7, WHITE);
+      M5.Display.fillCircle(cx, cy, 2, WHITE);
+      for (int ring=0; ring<3; ring++){
+        float rr = 14.0f + ring * 10.0f;
+        int seg = 32;
+        int prev[2] = {0,0};
+        for (int i=0;i<=seg;i++){
+          float a = i * (2.0f * M_PI / seg) + angle * (0.5f + ring*0.18f);
+          float x = cos(a) * rr;
+          float y = sin(a) * rr * 0.6f;
+          float z = sin(a + ring) * 6.0f;
+          int sx, sy;
+          project3D(x, y, z, cx, cy, sx, sy);
+          if (i > 0) M5.Display.drawLine(prev[0], prev[1], sx, sy, 0xD69A);
+          prev[0] = sx; prev[1] = sy;
+        }
+        float pa = angle * (0.8f + ring*0.23f);
+        float px = cos(pa) * rr;
+        float py = sin(pa) * rr * 0.6f;
+        float pz = sin(pa + ring) * 6.0f;
+        int psx, psy;
+        project3D(px, py, pz, cx, cy, psx, psy);
+        M5.Display.fillCircle(psx, psy, 2, WHITE);
+        if (ring == 2){
+          int rs = 10;
+          int prv[2] = {0,0};
+          for (int i=0;i<=rs;i++){
+            float a = i * (2.0f * M_PI / rs) + angle * 0.35f;
+            float x = px + cos(a) * 3.5f;
+            float y = py + sin(a) * 1.8f;
+            float z = pz + sin(a * 1.2f) * 1.0f;
+            int rx, ry;
+            project3D(x, y, z, cx, cy, rx, ry);
+            if (i > 0) M5.Display.drawLine(prv[0], prv[1], rx, ry, WHITE);
+            prv[0] = rx; prv[1] = ry;
+          }
         }
       }
     }
