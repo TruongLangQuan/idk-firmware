@@ -1,0 +1,13 @@
+- Rule: keep hardware pin defaults in `src/app/state.h` and persist changes via `src/modules/system/config.*`
+- Rule: treat IR, SD, backlight, power, WiFi as HIGH RISK zones
+- Rule: avoid long blocking loops; use short delays and call `M5.update()` inside loops
+- Rule: avoid dynamic allocation in render loops; prefer static buffers
+- Rule: check `ESP.getFreeHeap()` before large allocations (pattern already used in `src/modules/media/txt.cpp`)
+- Rule: keep list sizes bounded by `MAX_FILES`, `MAX_WIFI`, `MAX_CMDS` in `src/app/state.h`
+- Rule: minimize full-screen redraws when not needed to keep UI responsive
+- Rule: verify `SPIFFS.begin(true)` or `SD.begin(cs)` before any FS operation
+- Rule: guard SD access with `sdReady` and config CS pin
+- Rule: keep WebUI handlers non-blocking and validate paths (see `webui.cpp` pattern)
+- Rule: prefer M5Unified APIs for display/buttons/power
+- Rule: add new screens under `src/screens/` and update dispatch in `src/main.ino`
+- Rule: keep logging through `dbg_log_*` macros for consistent serial output

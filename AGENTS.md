@@ -1,0 +1,23 @@
+- BUILD: `pio run -e m5stickc_plus2`
+- FLASH: `pio run -e m5stickc_plus2 -t upload`
+- FS UPLOAD: `pio run -e m5stickc_plus2 -t uploadfs`
+- MONITOR: `pio device monitor -b 115200`
+- TEST: boot -> menu nav -> WiFi scan/connect -> SD mount -> IR send -> WebUI list
+- SAFE TO EDIT: `src/screens/*`
+- SAFE TO EDIT: `src/modules/features/games.*`
+- SAFE TO EDIT: `src/modules/features/test.*`
+- SAFE TO EDIT: `src/modules/features/cheat.*`
+- SAFE TO EDIT: `data/*`
+- SAFE TO EDIT: `ui/*`
+- EDIT WITH CAUTION: `src/core/*`
+- EDIT WITH CAUTION: `src/modules/media/*`
+- EDIT WITH CAUTION: `src/modules/files/*`
+- EDIT WITH CAUTION: `src/modules/network/*`
+- DO NOT EDIT: `src/app/state.h`
+- DO NOT EDIT: `src/system/power.*`
+- DO NOT EDIT: `src/modules/features/ir.*`
+- DO NOT EDIT: `hardware/esp32s3-handheld/*`
+- DRIVER RULE: keep pin defaults in `src/app/state.h` + `src/modules/system/config.*` aligned
+- DRIVER RULE: validate SD/IR/WiFi changes on device
+- DRIVER RULE: avoid long blocking loops in drivers
+- GENERATED: `.pio/`, `firmware_*.bin`
