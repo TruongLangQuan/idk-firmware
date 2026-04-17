@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/truonglangquan/idk-code/idk-firmware-idk/pcbs/**)"
+    ]
+  }
+}
